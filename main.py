@@ -7,13 +7,17 @@ import talib
 class Stocks:
     
     def __init__(self,ticker):
+        # setting self.ticker to ticker string for further uses ahead 
         self.ticker = ticker
-        self.historical_data()
+
+        self.fetch_data()
+
+        # load data from cache if exists else call historical data and calculate all nessecary values
         #try:
         #    self.data = self.load_data()
         #except:
         #    print('not using cache')
-        #    self.historical_data()
+        #    self.fetch_data()
         #    self.data.to_csv(f"rsi_divergence/cache/{self.ticker}_data.csv")  
         
         print(self.data)
@@ -23,168 +27,69 @@ class Stocks:
 
         return pd.read_csv(filename, index_col=0)
 
-    def historical_data(self):
+    def fetch_data(self):
 
         df_list = []
-        data = yf.download(self.ticker, group_by="Ticker", period='max',progress=False)
+        data = yf.download(self.ticker, group_by="Ticker", period='2d',interval='5m',progress=False)
         df_list.append(data)
         df = pd.concat(df_list)
+        
+        # saving the downloaded data to the class
+        
         self.data = df
+        # execution price taken as next day's open
         self.data['price'] = self.data.Open.shift(-1)
         self.data = self.data.dropna()
+
+        # calculating nessecary values using the below functions
         self.rsi()
-        self.pivot_high()
+        #self.pivot()
         self.stoch()
+
         self.data = self.data.dropna()
         print(self.data)
 
     def rsi(self):
+        # Using the talib library to calculate the values
         self.data['rsi'] = talib.RSI(self.data.Close, timeperiod=14)
         self.data = self.data.dropna()
         #print(self.data)
     
     def stoch(self):
+        # Normal implementation of stoch rsi incorrect in talib so correct code corresponding to values in github taken
         self.data['k'],self.data['d'] = talib.STOCH(self.data.rsi,self.data.rsi, self.data.rsi, 14)
-
-    def pivot_high(self):
-        pass
-
-    def pivot_low(self):
-        pass
-
-    def pivot_rsi_high(self):
-        pass
-
-    def pivot_rsi_low(self):
-        pass
     
+    def calc_pivot(self, index, prd):
+        # Ensure index and period are within bounds
+        if index < prd or index + prd >= len(self.data):
+            return None
 
-    
+        # Extract the window for calculation
+        window = self.data.High[index - prd : index + prd + 1].values
+        max_value = max(window)
+        high_max = max(window[:prd] + window[prd + 1:])
 
-Tsla = Stocks('TSLA')
-    
+        # Check pivot condition
+        if max_value == window[prd] and window[prd] > high_max:
+            return window[prd]
+        return None
 
-summary = pd.DataFrame(columns=['Ticker', 'P/L', 'No.of trades', 'Return (%)'])
+    def pivot(self):
+        pivot_high = [None] * len(self.data.High)
+        for i in range(len(self.data.High)):
+            pivot_high[i] = self.calc_pivot(i, 5)
+        self.data['Pivot_high'] = pivot_high
+        print(pivot_high)
+
+
         
-class strategy:
-    def __init__(self,ticker):
-        self.start_time = time.time()
-        stocks =  Stocks(ticker)
-        self.capital = 10000
-        self.open_position = False
-        self.buy_price = 0
-        self.buy_qty = 0
-        self.sell_price = 0
-        self.sell_qty = 0
-        self.tradetype = None
-        self.trades = pd.DataFrame(columns=['Buy price', 'Sell price', 'Quantity','Trade type', 'PNL', 'Return (%)','Capital'])
-        self.trades.loc[0] = [0,0,0,'None',0,0,10000]
-        self.stocks = stocks
-        self.number = 0
-        #print(self.stocks.data.iloc[0]['Close'])
-        #print('success')
+    def pivot(self):
+        len_right, len_left = 5, 5
+        #self.data.insert(7,"Pivot_high",self.pivot(),True)
+        #self.data['pivot_rsi_high'] = self.data.rsi.rolling(window=len_left, min_periods=1).max().shift(len_right)
+        #self.data['pivot_low'] = self.data.Low.rolling(window=len_left, min_periods=1).min().shift(len_right)
+        #self.data['pivot_rsi_low' ] = self.data.rsi.rolling(window=len_left, min_periods=1).min().shift(len_right)
 
-    
-    def long(self,index):
-        # Squarring off
-        if self.open_position:
-            self.buy_price = self.stocks.data.iloc[index]['Close']
-            self.buy_qty = self.sell_qty
-            pnl = (self.sell_price - self.buy_price) * self.sell_qty
-            pnl_percent = (pnl/self.capital) * 100
-            self.capital += pnl
-            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,self.sell_qty,self.tradetype,pnl,pnl_percent,self.capital]
-            # reinitializing the conditions
-            self.buy_price,self.buy_qty,self.sell_price,self.sell_qty = 0,0,0,0
-            self.open_position = False
-            self.tradetype = None
-            self.number += 1
-        else:
-            self.buy_price = self.stocks.data.iloc[index]['Close']
-            if self.capital < self.buy_price:
-                pass
-            else:
-                self.buy_qty = self.capital // self.buy_price
-            self.open_position = True
-            self.tradetype = 'long'
-            self.number += 1
 
-    
-    def short(self,index):
-        # Squarring off
-        if self.open_position:
-            self.sell_price = self.stocks.data.iloc[index]['Close']
-            self.sell_qty = self.buy_qty
-            pnl = (self.sell_price - self.buy_price) * self.sell_qty
-            pnl_percent = (pnl/self.capital) * 100
-            self.capital += pnl
-            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,self.sell_qty,self.tradetype,pnl,pnl_percent,self.capital]
-            # reinitializing the conditions
-            self.buy_price,self.buy_qty,self.sell_price,self.sell_qty = 0,0,0,0
-            self.open_position = False
-            self.tradetype = None
-            self.number += 1
-        else:
-            self.sell_price = self.stocks.data.iloc[index]['Close']
-            if self.capital < self.buy_price:
-                pass
-            else:
-                self.sell_qty = self.capital // self.sell_price
-            self.open_position = True
-            self.tradetype = 'short'
-            self.number += 1
-
-    def condition(self,index):
-        if self.stocks.data.iloc[index]['ema20'] > self.stocks.data.iloc[index]['ema50'] and self.stocks.data.iloc[index-1]['ema20'] <= self.stocks.data.iloc[index-1]['ema50']:
-            if self.open_position:
-                #square off
-                if self.tradetype == 'short':
-                    self.long(index)
-            else:
-                # take new positions
-                self.long(index)
-        elif self.stocks.data.iloc[index]['ema20'] < self.stocks.data.iloc[index]['ema50'] and self.stocks.data.iloc[index-1]['ema20'] >= self.stocks.data.iloc[index-1]['ema50']:
-            if self.open_position:
-                if self.tradetype == 'long':
-                    #square off
-                    self.short(index)
-            else:
-                # take new positions
-                self.short(index)
-    
-    def run_strategy(self):
-        #print('Running')
-        for i in range(49,len(self.stocks.data['Close'])):
-            self.condition(i)
-        #print('Completed')
-        print(self.trades)
-        #print(self.stocks.data)
-        summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-10000,2),self.number,round(((self.capital-10000)/10000)*100,2)]
+Tsla = Stocks('RELIANCE.NS')
         
-        print(self.__repr__())
-
-    def __repr__(self):
-        self.end_time = time.time()
-        return f"| Ticker ==> {self.stocks.ticker} | p/l ==>  {round(self.capital-10000,2)} ( {round(((self.capital-10000)/10000)*100,2)} % ) | time taken ==>  {round(self.end_time-self.start_time,2)} s |"
-
-#tickers = pd.ExcelFile('tickers.xlsx').parse('Complete Stock List')['Ticker'][:100]
- 
-#print(tickers)
-#progress_bar = tqdm(tickers)
-
-#for ticker in tickers:
-#    try:
-#        tick = strategy(ticker)
-#        tick.run_strategy()
-#    except Exception as e:
-#        print(e)
-#    #progress_bar.update()
-#summary.to_csv('summary.csv')
-
-
-#tsla = Stocks('TSLA')
-#goog = strategy("GOOG")
-##goog.historical_data()
-##goog.add_ema()
-#goog.run_strategy()
-
