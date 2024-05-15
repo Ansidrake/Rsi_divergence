@@ -1,8 +1,11 @@
+from numpy import short
 import yfinance as yf
 import pandas as pd
 import time
 from tqdm import tqdm
 import talib 
+import ta
+
 
 class Stocks:
     
@@ -10,7 +13,7 @@ class Stocks:
         # setting self.ticker to ticker string for further uses ahead 
         self.ticker = ticker
 
-        self.fetch_data()
+        self.fetch_data('short')
 
         # load data from cache if exists else call historical data and calculate all nessecary values
         #try:
@@ -27,16 +30,22 @@ class Stocks:
 
         return pd.read_csv(filename, index_col=0)
 
-    def fetch_data(self):
+    def fetch_data(self,timeframe):
+        
+        if timeframe =='long':
+            interval = '30m'
+        else:
+            interval = '5m'
 
         df_list = []
-        data = yf.download(self.ticker, group_by="Ticker", period='2d',interval='5m',progress=False)
+        data = yf.download(self.ticker, group_by="Ticker", period='2d',interval=interval,progress=False)
         df_list.append(data)
         df = pd.concat(df_list)
         
         # saving the downloaded data to the class
         
         self.data = df
+        
         # execution price taken as next day's open
         self.data['price'] = self.data.Open.shift(-1)
         self.data = self.data.dropna()
@@ -57,38 +66,19 @@ class Stocks:
     
     def stoch(self):
         # Normal implementation of stoch rsi incorrect in talib so correct code corresponding to values in github taken
-        self.data['k'],self.data['d'] = talib.STOCH(self.data.rsi,self.data.rsi, self.data.rsi, 14)
+        # https://gist.github.com/ultragtx/6831eb04dfe9e6ff50d0f334bdcb847d
+        period=14
+        smoothK=3
+        smoothD=3
+
+        rsi = self.data.rsi
+
+        # Calculate StochRSI 
+        stochrsi  = (rsi - rsi.rolling(period).min()) / (rsi.rolling(period).max() - rsi.rolling(period).min())
+        self.data['K'] = 100*stochrsi.rolling(smoothK).mean()
+        self.data['D'] = self.data.K.rolling(smoothD).mean()
+
     
-    def calc_pivot(self, index, prd):
-        # Ensure index and period are within bounds
-        if index < prd or index + prd >= len(self.data):
-            return None
-
-        # Extract the window for calculation
-        window = self.data.High[index - prd : index + prd + 1].values
-        max_value = max(window)
-        high_max = max(window[:prd] + window[prd + 1:])
-
-        # Check pivot condition
-        if max_value == window[prd] and window[prd] > high_max:
-            return window[prd]
-        return None
-
-    def pivot(self):
-        pivot_high = [None] * len(self.data.High)
-        for i in range(len(self.data.High)):
-            pivot_high[i] = self.calc_pivot(i, 5)
-        self.data['Pivot_high'] = pivot_high
-        print(pivot_high)
-
-
-        
-    def pivot(self):
-        len_right, len_left = 5, 5
-        #self.data.insert(7,"Pivot_high",self.pivot(),True)
-        #self.data['pivot_rsi_high'] = self.data.rsi.rolling(window=len_left, min_periods=1).max().shift(len_right)
-        #self.data['pivot_low'] = self.data.Low.rolling(window=len_left, min_periods=1).min().shift(len_right)
-        #self.data['pivot_rsi_low' ] = self.data.rsi.rolling(window=len_left, min_periods=1).min().shift(len_right)
 
 
 Tsla = Stocks('RELIANCE.NS')
