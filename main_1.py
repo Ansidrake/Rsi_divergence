@@ -1,6 +1,3 @@
-from pyclbr import Class
-from turtle import TPen
-import numpy as np
 import yfinance as yf
 import pandas as pd
 import time
@@ -120,14 +117,12 @@ class Stocks:
             else:
                 gradient[i] = gradient[i-1] 
         self.data[name_gradient] = gradient
-    
-
 
 Tsla = Stocks('TSLA','5m')
 
 summary = pd.DataFrame(columns=['Ticker', 'P/L', 'No.of trades', 'Return (%)'])
 
-class risk:
+class Risk:
     def __init__(self, data, type):
         self.data = data
         # risk management strategy type
@@ -270,10 +265,15 @@ class risk:
         return take_profit
 
 class strategy:
-    def __init__(self,ticker):
+    def __init__(self,ticker,risk_strategy):
         self.start_time = time.time()
         stocks =  Stocks(ticker)
-        self.capital = 10000
+        self.stocks = stocks
+        # uncomment the risk strategy you want to apply
+        
+        risk = Risk(self.stocks.data,risk_strategy)
+        
+        self.capital = 100000
         self.open_position = False
         self.buy_price = 0
         self.buy_qty = 0
@@ -282,24 +282,29 @@ class strategy:
         self.tradetype = None
         self.trades = pd.DataFrame(columns=['Buy price', 'Sell price', 'Quantity','Trade type', 'PNL', 'Return (%)','Capital'])
         self.trades.loc[0] = [0,0,0,'None',0,0,10000]
-        self.stocks = stocks
+        self.take_profit = None
+        self.stop_loss = None
+        
         self.number = 0
-
     
-    def long(self,index):
-        # Squarring off
-        if self.open_position:
-            self.buy_price = self.stocks.data.price[index]
-            self.buy_qty = self.sell_qty
-            pnl = (self.sell_price - self.buy_price) * self.sell_qty
-            pnl_percent = (pnl/self.capital) * 100
-            self.capital += pnl
-            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,self.sell_qty,self.tradetype,pnl,pnl_percent,self.capital]
-            # reinitializing the conditions
+    def reinitialize(self):
             self.buy_price,self.buy_qty,self.sell_price,self.sell_qty = 0,0,0,0
             self.open_position = False
             self.tradetype = None
+            self.take_profit = None
+            self.stop_loss = None
+
+    def long(self,index,qty):
+        # Squarring off
+        if self.open_position:
+            self.buy_price = self.stocks.data.price[index]
+            self.buy_qty = qty
+            pnl = (self.sell_price - self.buy_price) * qty
+            pnl_percent = (pnl/self.capital) * 100
+            self.capital += pnl
+            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,qty,self.tradetype,pnl,pnl_percent,self.capital]
             self.number += 1
+            
         else:
             self.buy_price = self.stocks.data.price[index]
             if self.capital < self.buy_price:
@@ -309,17 +314,17 @@ class strategy:
             self.open_position = True
             self.tradetype = 'long'
             self.number += 1
-
     
-    def short(self,index):
+
+    def short(self,index,qty):
         # Squarring off
         if self.open_position:
             self.sell_price = self.stocks.data.price[index]
-            self.sell_qty = self.buy_qty
-            pnl = (self.sell_price - self.buy_price) * self.sell_qty
+            self.sell_qty = qty
+            pnl = (self.sell_price - self.buy_price) * qty
             pnl_percent = (pnl/self.capital) * 100
             self.capital += pnl
-            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,self.sell_qty,self.tradetype,pnl,pnl_percent,self.capital]
+            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,qty,self.tradetype,pnl,pnl_percent,self.capital]
             # reinitializing the conditions
             self.buy_price,self.buy_qty,self.sell_price,self.sell_qty = 0,0,0,0
             self.open_position = False
@@ -336,26 +341,17 @@ class strategy:
             self.number += 1
 
     def condition(self,index):
-        if self.stocks.data.iloc[index]['ema20'] > self.stocks.data.iloc[index]['ema50'] and self.stocks.data.iloc[index-1]['ema20'] <= self.stocks.data.iloc[index-1]['ema50']:
-            if self.open_position:
-                #square off
-                if self.tradetype == 'short':
-                    self.long(index)
-            else:
-                # take new positions
-                self.long(index)
-        elif self.stocks.data.iloc[index]['ema20'] < self.stocks.data.iloc[index]['ema50'] and self.stocks.data.iloc[index-1]['ema20'] >= self.stocks.data.iloc[index-1]['ema50']:
+        pass
+
+    def run_strategy(self):
+        for i in range(len(self.stocks.data.Close)):
             if self.open_position:
                 if self.tradetype == 'long':
-                    #square off
-                    self.short(index)
-            else:
-                # take new positions
-                self.short(index)
-    
-    def run_strategy(self):
-        
-        for i in range(len(self.stocks.data.Close)):
+                    self.risk.update_stop_loss(self.buy_price,i,self.tradetype,self.stop_loss)
+                    self.risk.update_take_profit(self.buy_price,i,self.tradetype,self.take_profit)
+                elif self.tradetype == 'short':
+                    self.risk.update_stop_loss(self.sell_price,i,self.tradetype,self.stop_loss)
+                    self.risk.update_take_profit(self.sell_price,i,self.tradetype,self.take_profit)
             self.condition(i)
         
         print(self.trades)
