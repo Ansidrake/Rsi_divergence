@@ -117,7 +117,7 @@ class Stocks:
 
         self.data[name_gradient] = gradient
 
-#Tsla = Stocks('TSLA','15m')
+#Tsla = Stocks('TSLA','5m')
 
 summary = pd.DataFrame(columns=['Ticker', 'P/L', 'No.of trades', 'Return (%)','Win %','Avg_win_value','Avg_loss_value'])
 
@@ -270,7 +270,7 @@ class Risk:
 class strategy:
     def __init__(self,ticker,risk_strategy):
         self.start_time = time.time()
-        stocks =  Stocks(ticker,'15m')
+        stocks =  Stocks(ticker,'5m')
         self.stocks = stocks
         # uncomment the risk strategy you want to apply
         
@@ -285,8 +285,8 @@ class strategy:
         self.tradetype = None
         self.trades = pd.DataFrame(columns=['Buy price', 'Sell price', 'Quantity','Trade type', 'PNL', 'Return (%)','Capital'])
         self.trades.loc[0] = [0,0,0,'None',0,0,100000]
-        self.take_profit = 0
-        self.stop_loss = 0
+        self.take_profit = [0]*4
+        self.stop_loss = [1000000] * 4
         
         self.number = 0
         self.win = 0
@@ -300,8 +300,8 @@ class strategy:
             if self.risk.type == 'adjusted':
                 self.adjusted = 0
             self.tradetype = None
-            self.take_profit = 0
-            self.stop_loss = 0
+            self.take_profit = [0]*4
+            self.stop_loss = [1000000] * 4
 
     def long(self,index,qty = 0):
         # Squarring off
@@ -349,11 +349,7 @@ class strategy:
                 self.loss +=1
                 self.l += pnl
             self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,qty,self.tradetype,pnl,pnl_percent,self.capital]
-            # reinitializing the conditions
-            self.buy_price,self.buy_qty,self.sell_price,self.sell_qty = 0,0,0,0
-            self.open_position = False
-            self.tradetype = None
-            self.number += 1
+            
         else:
             self.sell_price = self.stocks.data.price[index]
             if self.capital < self.buy_price:
@@ -392,7 +388,12 @@ class strategy:
         return False
 
     def condition(self,index):
-        pass
+        if self.regular_bullish_divergence(index) and self.stocks.data.K[index] > self.stocks.data.D[index]:
+            self.long(index)
+        # detect regular bullish divergence in last 5 candles ie rsi high gradient < 0 stock, pivot high gradient > 0
+        # confirm if k is greater than d 
+        if self.regular_bearish_divergence(index) and self.stocks.data.K[index] < self.stocks.data.D[index]:
+            self.short(index)
 
     
     def check(self,index):
@@ -463,8 +464,8 @@ class strategy:
             else:
                 self.condition(i)
         
-        print(self.trades)
-        #summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-100000,2),self.number,round(((self.capital-100000)/100000)*100,2),round(((self.win)/(self.win+self.loss))*100,2),round(((self.w)/(self.win))*100,2),round(((self.l)/(self.loss))*100,2)]
+        #print(self.trades)
+        summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-100000,2),self.number,round(((self.capital-100000)/100000)*100,2),round(((self.win)/(self.win+self.loss))*100,2),round(((self.w)/(self.win))*100,2),round(((self.l)/(self.loss))*100,2)]
         
         print(self.__repr__())
 
@@ -476,14 +477,14 @@ tsla = strategy('RELIANCE.NS','adjusted')
 tsla.run_strategy()
 tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:100]
 
-#progress_bar = tqdm(tickers)
-#
-#for ticker in tickers:
-#    try:
-#        tick = strategy(ticker,'atr')
-#        tick.run_strategy()
-#    except Exception as e:
-#        print(e)
-#    progress_bar.update()
-#summary.to_csv("summary_2_15m.csv")
+progress_bar = tqdm(tickers)
+
+for ticker in tickers:
+    try:
+        tick = strategy(ticker,'adjusted')
+        tick.run_strategy()
+    except Exception as e:
+        print(e)
+    progress_bar.update()
+summary.to_csv("summary_2_5m.csv")
 

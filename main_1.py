@@ -33,7 +33,7 @@ class Stocks:
     def fetch_data(self):
         
         df_list = []
-        data = yf.download(self.ticker, group_by="Ticker", period='30d',interval=self.interval,progress=False)
+        data = yf.download(self.ticker, group_by="Ticker", period='7d',interval=self.interval,progress=False)
         df_list.append(data)
         df = pd.concat(df_list)
         
@@ -117,7 +117,7 @@ class Stocks:
 
         self.data[name_gradient] = gradient
 
-#Tsla = Stocks('TSLA','15m')
+#Tsla = Stocks('TSLA','2m')
 
 summary = pd.DataFrame(columns=['Ticker', 'P/L', 'No.of trades', 'Return (%)','Win %','Avg_win_value','Avg_loss_value'])
 
@@ -270,7 +270,7 @@ class Risk:
 class strategy:
     def __init__(self,ticker,risk_strategy):
         self.start_time = time.time()
-        stocks =  Stocks(ticker,'15m')
+        stocks =  Stocks(ticker,'2m')
         self.stocks = stocks
         # uncomment the risk strategy you want to apply
         
@@ -491,5 +491,5 @@ for ticker in tickers:
     except Exception as e:
         print(e)
     progress_bar.update()
-summary.to_csv("summary_15m.csv")
+summary.to_csv("summary_2m.csv")
 
