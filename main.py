@@ -1,4 +1,5 @@
 from pyclbr import Class
+from turtle import TPen
 import numpy as np
 import yfinance as yf
 import pandas as pd
@@ -54,10 +55,10 @@ class Stocks:
         self.stoch()
         self.data = self.data.dropna()
 
-        self.pivot('high',self.data.High,'Pivothigh','gradient_high')
-        self.pivot('high',self.data.rsi,'Pivothigh_rsi','gradient_high_rsi')
-        self.pivot('low',self.data.Low,'Pivotlow','gradient_low')
-        self.pivot('low',self.data.rsi,'Pivotlow_rsi','gradient_low_rsi')
+        self.pivot('high',self.data.High,'Pivot_high','gradient_high')
+        self.pivot('high',self.data.rsi,'Pivot_high_rsi','gradient_high_rsi')
+        self.pivot('low',self.data.Low,'Pivot_low','gradient_low')
+        self.pivot('low',self.data.rsi,'Pivot_low_rsi','gradient_low_rsi')
         
         self.atr()
 
@@ -123,3 +124,246 @@ class Stocks:
 
 
 Tsla = Stocks('TSLA','5m')
+
+summary = pd.DataFrame(columns=['Ticker', 'P/L', 'No.of trades', 'Return (%)'])
+
+class risk:
+    def __init__(self, data, type):
+        self.data = data
+        # risk management strategy type
+        self.type = type
+    
+    def set_stop_loss(self,entry_price,index,entry_type):
+        if self.type == 'atr':
+            if entry_type == 'long':
+                stop_loss = entry_price - 2 * self.data.atr[index]
+            elif entry_type == 'short':
+                stop_loss = entry_price + 2 * self.data.atr[index]
+        elif self.type == 'adjusting':
+            if entry_type == 'long':
+                sl = entry_price - (entry_price - self.data.Pivot_low[index])*1.5
+                stop_loss = [sl]*4
+            elif entry_type == 'short':
+                sl = entry_price + (entry_price - self.data.Pivot_high[index])*1.5
+                stop_loss = [sl]*4
+        return stop_loss
+
+
+    def update_stop_loss(self,entry_price,current_index,entry_type,last_stop):
+        if self.type == 'atr':
+            if entry_type == 'long':
+                temp = self.data.Low[current_index] - 2 * self.data.atr[current_index]
+                if temp > last_stop:
+                    stop_loss = temp
+                else:
+                    stop_loss = last_stop
+            elif entry_type == 'short':
+                temp = self.data.Low[current_index] + 2 * self.data.atr[current_index]
+                if temp < last_stop:
+                    stop_loss = temp
+                else:
+                    stop_loss = last_stop         
+        elif self.type == 'adjusting':
+            stop_loss = last_stop
+            
+            if entry_type == 'long':
+                treshold = entry_price - self.data.Pivot_low[current_index]
+                best_case = [entry_price + i * treshold for i in range(1,5)]
+                current_price = self.data.Close[current_index]
+                # treshold for updating 
+                check = treshold * 0.75
+                if entry_price <= current_price <= best_case[0]:
+                    if entry_price + check < current_price:
+                        stop_loss = [entry_price]*4
+                elif best_case[0] <= current_price <= best_case[1]:
+                    if best_case[0] + check < current_price:
+                        stop_loss = [entry_price,best_case[0],best_case[0],best_case[0]]
+                elif best_case[1] <= current_price <= best_case[2]:
+                    if best_case[1] + check < current_price:
+                        stop_loss = [entry_price,best_case[0],best_case[1],best_case[1]]
+                elif best_case[2] <= current_price <= best_case[3]:
+                    if best_case[1] + check < current_price:
+                        stop_loss = [entry_price,best_case[0],best_case[1],best_case[2]]
+                
+            elif entry_type == 'short':
+                treshold = entry_price - self.data.Pivot_low[current_index]
+                best_case = [entry_price - i * treshold for i in range(1,5)]
+                current_price = self.data.Close[current_index]
+                # treshold for updating 
+                check = treshold * 0.75
+                if entry_price >= current_price >= best_case[0]:
+                    if entry_price - check > current_price:
+                        stop_loss = [entry_price]*4
+                elif best_case[0] >= current_price >= best_case[1]:
+                    if best_case[0] - check > current_price:
+                        stop_loss = [entry_price,best_case[0],best_case[0],best_case[0]]
+                elif best_case[1] >= current_price >= best_case[2]:
+                    if best_case[1] - check > current_price:
+                        stop_loss = [entry_price,best_case[0],best_case[1],best_case[1]]
+                elif best_case[2] >= current_price >= best_case[3]:
+                    if best_case[1] - check > current_price:
+                        stop_loss = [entry_price,best_case[0],best_case[1],best_case[2]]
+        return stop_loss
+            
+    
+    def set_take_profit(self,entry_price,index,entry_type):
+        if self.type == 'atr':
+            if entry_type == 'long':
+                take_profit = entry_price + 2 * self.data.atr[index]
+            elif entry_type == 'short':
+                take_profit = entry_price - 2 * self.data.atr[index]
+        elif self.type == 'adjusting':
+            if entry_type == 'long':
+                tp = entry_price + (entry_price - self.data.Pivot_low[index])
+                take_profit = [tp]*4
+            elif entry_type == 'short':
+                sl = entry_price - (entry_price - self.data.Pivot_high[index])
+                take_profit = [tp]*4
+        return take_profit
+
+    def update_take_profit(self,entry_price,current_index,entry_type,last_tp):
+        take_profit = last_tp
+        if self.type == 'atr':
+           if entry_type == 'long':
+               temp = self.data.High[current_index] + 2 * self.data.atr[current_index]
+               if temp > last_tp:
+                   take_profit = temp
+           elif entry_type == 'short':
+               temp = self.data.Low[current_index] - 2 * self.data.atr[current_index]
+               if temp < last_tp:
+                   take_profit = temp  
+        
+        elif self.type == 'adjusting':
+            take_profit = last_tp
+            
+            if entry_type == 'long':
+                treshold = entry_price - self.data.Pivot_low[current_index]
+                best_case = [entry_price + i * treshold for i in range(1,5)]
+                current_price = self.data.Close[current_index]
+                # treshold for updating 
+                check = treshold * 0.75
+                if entry_price <= current_price <= best_case[0]:
+                    if entry_price + check < current_price:
+                        take_profit = [best_case[0],best_case[1],best_case[1],best_case[1]]
+                elif best_case[0] <= current_price <= best_case[1]:
+                    if best_case[0] + check < current_price:
+                        take_profit = [best_case[0],best_case[1],best_case[2],best_case[2]]
+                elif best_case[1] <= current_price <= best_case[2]:
+                    if best_case[1] + check < current_price:
+                        take_profit = [best_case[0],best_case[1],best_case[2],best_case[3]]
+            
+            elif entry_type == 'short':
+                treshold = entry_price - self.data.Pivot_high[current_index]
+                best_case = [entry_price - i * treshold for i in range(1,5)]
+                current_price = self.data.Close[current_index]
+                # treshold for updating 
+                check = treshold * 0.75
+                if entry_price >= current_price >= best_case[0]:
+                    if entry_price - check > current_price:
+                        take_profit = [best_case[0],best_case[1],best_case[1],best_case[1]]
+                elif best_case[0] >= current_price >= best_case[1]:
+                    if best_case[0] - check > current_price:
+                        take_profit = [best_case[0],best_case[1],best_case[2],best_case[2]]
+                elif best_case[1] >= current_price >= best_case[2]:
+                    if best_case[1] - check > current_price:
+                        take_profit = [best_case[0],best_case[1],best_case[2],best_case[3]]
+        return take_profit
+
+class strategy:
+    def __init__(self,ticker):
+        self.start_time = time.time()
+        stocks =  Stocks(ticker)
+        self.capital = 10000
+        self.open_position = False
+        self.buy_price = 0
+        self.buy_qty = 0
+        self.sell_price = 0
+        self.sell_qty = 0
+        self.tradetype = None
+        self.trades = pd.DataFrame(columns=['Buy price', 'Sell price', 'Quantity','Trade type', 'PNL', 'Return (%)','Capital'])
+        self.trades.loc[0] = [0,0,0,'None',0,0,10000]
+        self.stocks = stocks
+        self.number = 0
+
+    
+    def long(self,index):
+        # Squarring off
+        if self.open_position:
+            self.buy_price = self.stocks.data.price[index]
+            self.buy_qty = self.sell_qty
+            pnl = (self.sell_price - self.buy_price) * self.sell_qty
+            pnl_percent = (pnl/self.capital) * 100
+            self.capital += pnl
+            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,self.sell_qty,self.tradetype,pnl,pnl_percent,self.capital]
+            # reinitializing the conditions
+            self.buy_price,self.buy_qty,self.sell_price,self.sell_qty = 0,0,0,0
+            self.open_position = False
+            self.tradetype = None
+            self.number += 1
+        else:
+            self.buy_price = self.stocks.data.price[index]
+            if self.capital < self.buy_price:
+                pass
+            else:
+                self.buy_qty = self.capital // self.buy_price
+            self.open_position = True
+            self.tradetype = 'long'
+            self.number += 1
+
+    
+    def short(self,index):
+        # Squarring off
+        if self.open_position:
+            self.sell_price = self.stocks.data.price[index]
+            self.sell_qty = self.buy_qty
+            pnl = (self.sell_price - self.buy_price) * self.sell_qty
+            pnl_percent = (pnl/self.capital) * 100
+            self.capital += pnl
+            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,self.sell_qty,self.tradetype,pnl,pnl_percent,self.capital]
+            # reinitializing the conditions
+            self.buy_price,self.buy_qty,self.sell_price,self.sell_qty = 0,0,0,0
+            self.open_position = False
+            self.tradetype = None
+            self.number += 1
+        else:
+            self.sell_price = self.stocks.data.price[index]
+            if self.capital < self.buy_price:
+                pass
+            else:
+                self.sell_qty = self.capital // self.sell_price
+            self.open_position = True
+            self.tradetype = 'short'
+            self.number += 1
+
+    def condition(self,index):
+        if self.stocks.data.iloc[index]['ema20'] > self.stocks.data.iloc[index]['ema50'] and self.stocks.data.iloc[index-1]['ema20'] <= self.stocks.data.iloc[index-1]['ema50']:
+            if self.open_position:
+                #square off
+                if self.tradetype == 'short':
+                    self.long(index)
+            else:
+                # take new positions
+                self.long(index)
+        elif self.stocks.data.iloc[index]['ema20'] < self.stocks.data.iloc[index]['ema50'] and self.stocks.data.iloc[index-1]['ema20'] >= self.stocks.data.iloc[index-1]['ema50']:
+            if self.open_position:
+                if self.tradetype == 'long':
+                    #square off
+                    self.short(index)
+            else:
+                # take new positions
+                self.short(index)
+    
+    def run_strategy(self):
+        
+        for i in range(len(self.stocks.data.Close)):
+            self.condition(i)
+        
+        print(self.trades)
+        summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-10000,2),self.number,round(((self.capital-10000)/10000)*100,2)]
+        
+        print(self.__repr__())
+
+    def __repr__(self):
+        self.end_time = time.time()
+        return f"| Ticker ==> {self.stocks.ticker} | p/l ==>  {round(self.capital-10000,2)} ( {round(((self.capital-10000)/10000)*100,2)} % ) | time taken ==>  {round(self.end_time-self.start_time,2)} s |"
+
