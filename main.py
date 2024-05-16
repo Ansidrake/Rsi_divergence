@@ -9,36 +9,32 @@ import talib
 
 class Stocks:
     
-    def __init__(self,ticker):
+    def __init__(self,ticker,interval):
         # setting self.ticker to ticker string for further uses ahead 
         self.ticker = ticker
+        self.interval = interval
 
-        #self.fetch_data('short')
 
         # load data from cache if exists else call historical data and calculate all nessecary values
         try:
             self.data = self.load_data()
+            
         except:
             print('not using cache')
-            self.fetch_data('short')
-            self.data.to_csv(f"rsi_divergence/cache/{self.ticker}_data.csv")  
+            self.fetch_data()
+            self.data.to_csv(f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv")  
         
         print(self.data)
 
     def load_data(self):
-        filename = f"rsi_divergence/cache/{self.ticker}_data.csv"  
+        filename = f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv"  
 
         return pd.read_csv(filename, index_col=0)
 
-    def fetch_data(self,timeframe):
+    def fetch_data(self):
         
-        if timeframe =='long':
-            interval = '30m'
-        else:
-            interval = '5m'
-
         df_list = []
-        data = yf.download(self.ticker, group_by="Ticker", period='2d',interval=interval,progress=False)
+        data = yf.download(self.ticker, group_by="Ticker", period='2d',interval=self.interval,progress=False)
         df_list.append(data)
         df = pd.concat(df_list)
         
@@ -60,7 +56,7 @@ class Stocks:
         self.pivot_low_rsi()
 
         self.data = self.data.dropna()
-        print(self.data)
+        
 
     def rsi(self):
         # Using the talib library to calculate the values
@@ -91,8 +87,9 @@ class Stocks:
         for i in range(5):
             pivot_high[i] = self.data.High[5-i:].max()
         self.data['Pivot_high'] = pivot_high
+        self.gradient_high()
         
-        # now gradient between the two pivot values
+    def gradient_high(self):
         gradient = [0]*len(self.data.High)
         temp = self.data.Pivot_high[0]
         for i in range(len(self.data.Pivot_high)):
@@ -111,8 +108,9 @@ class Stocks:
         for i in range(5):
             pivot_high[i] = self.data.rsi[5-i:].max()
         self.data['Pivot_high_rsi'] = pivot_high
+        self.gradient_high_rsi()
         
-        # now gradient between the two pivot values
+    def gradient_high_rsi(self):
         gradient = [0]*len(self.data.High)
         temp = self.data.Pivot_high_rsi[0]
         for i in range(len(self.data.Pivot_high)):
@@ -131,8 +129,9 @@ class Stocks:
         for i in range(5):
             pivot_high[i] = self.data.Low[5-i:].min()
         self.data['Pivot_low'] = pivot_high
+        self.gradient_low()
         
-        # now gradient between the two pivot values
+    def gradient_low(self):
         gradient = [0]*len(self.data.High)
         temp = self.data.Pivot_low[0]
         for i in range(len(self.data.Pivot_low)):
@@ -151,8 +150,9 @@ class Stocks:
         for i in range(5):
             pivot_high[i] = self.data.Low[5-i:].min()
         self.data['Pivot_low_rsi'] = pivot_high
+        self.gradient_low_rsi()
         
-        # now gradient between the two pivot values
+    def gradient_low_rsi(self):
         gradient = [0]*len(self.data.High)
         temp = self.data.Pivot_low_rsi[0]
         for i in range(len(self.data.Pivot_low_rsi)):
@@ -163,5 +163,5 @@ class Stocks:
                 gradient[i] = gradient[i-1] 
         self.data['gradient_low_rsi'] = gradient
 
-Tsla = Stocks('RELIANCE.NS')
+Tsla = Stocks('RELIANCE.NS','5m')
         
