@@ -33,7 +33,7 @@ class Stocks:
     def fetch_data(self):
         
         df_list = []
-        data = yf.download(self.ticker, group_by="Ticker", period='7d',interval=self.interval,progress=False)
+        data = yf.download(self.ticker, group_by="Ticker", period='30d',interval=self.interval,progress=False)
         df_list.append(data)
         df = pd.concat(df_list)
         
@@ -117,9 +117,9 @@ class Stocks:
 
         self.data[name_gradient] = gradient
 
-#Tsla = Stocks('TSLA','5m')
+#Tsla = Stocks('TSLA','15m')
 
-summary = pd.DataFrame(columns=['Ticker', 'P/L', 'No.of trades', 'Return (%)'])
+summary = pd.DataFrame(columns=['Ticker', 'P/L', 'No.of trades', 'Return (%)','Win %','Avg_win_value','Avg_loss_value'])
 
 class Risk:
     def __init__(self, data, type):
@@ -270,7 +270,7 @@ class Risk:
 class strategy:
     def __init__(self,ticker,risk_strategy):
         self.start_time = time.time()
-        stocks =  Stocks(ticker,'5m')
+        stocks =  Stocks(ticker,'15m')
         self.stocks = stocks
         # uncomment the risk strategy you want to apply
         
@@ -284,11 +284,15 @@ class strategy:
         self.sell_qty = 0
         self.tradetype = None
         self.trades = pd.DataFrame(columns=['Buy price', 'Sell price', 'Quantity','Trade type', 'PNL', 'Return (%)','Capital'])
-        self.trades.loc[0] = [0,0,0,'None',0,0,10000]
+        self.trades.loc[0] = [0,0,0,'None',0,0,100000]
         self.take_profit = 0
         self.stop_loss = 0
         
         self.number = 0
+        self.win = 0
+        self.w = 0
+        self.loss = 0
+        self.l = 0
     
     def reinitialize(self):
             self.buy_price,self.buy_qty,self.sell_price,self.sell_qty = 0,0,0,0
@@ -307,6 +311,12 @@ class strategy:
             pnl = (self.sell_price - self.buy_price) * qty
             pnl_percent = (pnl/self.capital) * 100
             self.capital += pnl
+            if pnl>0:
+                self.win += 1
+                self.w += pnl
+            else:
+                self.loss +=1
+                self.l += pnl
             self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,qty,self.tradetype,pnl,pnl_percent,self.capital]
             self.number += 1
             
@@ -332,6 +342,12 @@ class strategy:
             pnl = (self.sell_price - self.buy_price) * qty
             pnl_percent = (pnl/self.capital) * 100
             self.capital += pnl
+            if pnl>0:
+                self.win += 1
+                self.w += pnl
+            else:
+                self.loss +=1
+                self.l += pnl
             self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,qty,self.tradetype,pnl,pnl_percent,self.capital]
             # reinitializing the conditions
             self.buy_price,self.buy_qty,self.sell_price,self.sell_qty = 0,0,0,0
@@ -352,25 +368,25 @@ class strategy:
             self.number += 1
     
     def regular_bullish_divergence(self,index):
-        for i in range(3):
+        for i in range(2):
             if self.stocks.data.gradient_low_rsi[index-i] > 0 and self.stocks.data.gradient_low[index-i] < 0:
                 return True
         return False
     
     def hidden_bullish_divergence(self,index):
-        for i in range(3):
+        for i in range(2):
             if self.stocks.data.gradient_low_rsi[index-i] < 0 and self.stocks.data.gradient_low[index-i] > 0:
                 return True
         return False
     
     def regular_bearish_divergence(self,index):
-        for i in range(3):
+        for i in range(2):
             if self.stocks.data.gradient_high_rsi[index-i] < 0 and self.stocks.data.gradient_high[index-i] > 0:
                 return True
         return False
     
     def regular_bearish_divergence(self,index):
-        for i in range(3):
+        for i in range(2):
             if self.stocks.data.gradient_high_rsi[index-i] > 0 and self.stocks.data.gradient_high[index-i] < 0:
                 return True
         return False
@@ -453,10 +469,10 @@ class strategy:
             else:
                 self.condition(i)
         
-        print(self.trades)
-        summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-100000,2),self.number,round(((self.capital-100000)/100000)*100,2)]
+        #print(self.trades)
+        summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-100000,2),self.number,round(((self.capital-100000)/100000)*100,2),round(((self.win)/(self.win+self.loss))*100,2),round(((self.w)/(self.win))*100,2),round(((self.l)/(self.loss))*100,2)]
         
-        print(self.__repr__())
+        #print(self.__repr__())
 
     def __repr__(self):
         self.end_time = time.time()
@@ -464,4 +480,16 @@ class strategy:
 
 tsla = strategy('RELIANCE.NS','atr')
 tsla.run_strategy()
-summary.to_csv('summary.csv')
+tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:100]
+
+progress_bar = tqdm(tickers)
+
+for ticker in tickers:
+    try:
+        tick = strategy(ticker,'atr')
+        tick.run_strategy()
+    except Exception as e:
+        print(e)
+    progress_bar.update()
+summary.to_csv("summary_15m.csv")
+

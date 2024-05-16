@@ -287,12 +287,11 @@ class strategy:
         self.trades.loc[0] = [0,0,0,'None',0,0,100000]
         self.take_profit = 0
         self.stop_loss = 0
-        
-        self.number = 0
         self.win = 0
         self.w = 0
         self.loss = 0
         self.l = 0
+        self.number = 0
     
     def reinitialize(self):
             self.buy_price,self.buy_qty,self.sell_price,self.sell_qty = 0,0,0,0
@@ -392,12 +391,21 @@ class strategy:
         return False
 
     def condition(self,index):
-        pass
-
+        # detect regular bullish divergence in last 3 candles ie rsi low gradient > 0 stock, pivot low gradient < 0
+        # confirm if k is greater than d 
+        if self.regular_bullish_divergence(index) and self.stocks.data.K[index] > self.stocks.data.D[index]:
+            self.long(index)
+        # detect regular bullish divergence in last 5 candles ie rsi high gradient < 0 stock, pivot high gradient > 0
+        # confirm if k is greater than d 
+        if self.regular_bearish_divergence(index) and self.stocks.data.K[index] < self.stocks.data.D[index]:
+            self.short(index)
     
     def check(self,index):
         if self.risk.type == 'atr':
             if self.tradetype == 'long':
+                if self.stocks.data.K[index] < self.stocks.data.D[index] :
+                    self.short(index)
+                    self.reinitialize()
                 if self.stop_loss > self.stocks.data.Close[index]:
                     self.short(index,self.buy_qty)
                     self.reinitialize()
@@ -405,6 +413,9 @@ class strategy:
                     self.short(index,self.buy_qty)
                     self.reinitialize()
             elif self.tradetype == 'short':
+                if self.stocks.data.K[index] > self.stocks.data.D[index] :
+                    self.long(index)
+                    self.reinitialize()
                 if self.stop_loss < self.stocks.data.Close[index]:
                     self.long(index,self.sell_qty)
                     self.reinitialize()
@@ -463,27 +474,27 @@ class strategy:
             else:
                 self.condition(i)
         
-        print(self.trades)
-        #summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-100000,2),self.number,round(((self.capital-100000)/100000)*100,2),round(((self.win)/(self.win+self.loss))*100,2),round(((self.w)/(self.win))*100,2),round(((self.l)/(self.loss))*100,2)]
+        #print(self.trades)
+        summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-100000,2),self.number,round(((self.capital-100000)/100000)*100,2),round(((self.win)/(self.win+self.loss))*100,2),round(((self.w)/(self.win))*100,2),round(((self.l)/(self.loss))*100,2)]
         
-        print(self.__repr__())
+        #print(self.__repr__())
 
     def __repr__(self):
         self.end_time = time.time()
         return f"| Ticker ==> {self.stocks.ticker} | p/l ==>  {round(self.capital-100000,2)} ( {round(((self.capital-100000)/100000)*100,2)} % ) | time taken ==>  {round(self.end_time-self.start_time,2)} s |"
 
-tsla = strategy('RELIANCE.NS','adjusted')
+tsla = strategy('RELIANCE.NS','atr')
 tsla.run_strategy()
 tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:100]
 
-#progress_bar = tqdm(tickers)
-#
-#for ticker in tickers:
-#    try:
-#        tick = strategy(ticker,'atr')
-#        tick.run_strategy()
-#    except Exception as e:
-#        print(e)
-#    progress_bar.update()
-#summary.to_csv("summary_2_15m.csv")
+progress_bar = tqdm(tickers)
+
+for ticker in tickers:
+    try:
+        tick = strategy(ticker,'atr')
+        tick.run_strategy()
+    except Exception as e:
+        print(e)
+    progress_bar.update()
+summary.to_csv('summary_3_15m.csv')
 
