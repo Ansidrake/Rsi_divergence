@@ -339,9 +339,39 @@ class strategy:
             self.open_position = True
             self.tradetype = 'short'
             self.number += 1
+    
+    def regular_bullish_divergence(self,index):
+        for i in range(3):
+            if self.stocks.data.gradient_rsi_low[index-i] > 0 and self.stocks.data.gradient_low[index-i] < 0:
+                return True
+        return False
+    
+    def hidden_bullish_divergence(self,index):
+        for i in range(3):
+            if self.stocks.data.gradient_rsi_low[index-i] < 0 and self.stocks.data.gradient_low[index-i] > 0:
+                return True
+        return False
+    
+    def regular_bearish_divergence(self,index):
+        for i in range(3):
+            if self.stocks.data.gradient_rsi_high[index-i] < 0 and self.stocks.data.gradient_high[index-i] > 0:
+                return True
+        return False
+    
+    def regular_bearish_divergence(self,index):
+        for i in range(3):
+            if self.stocks.data.gradient_rsi_high[index-i] > 0 and self.stocks.data.gradient_high[index-i] < 0:
+                return True
+        return False
+
+
 
     def condition(self,index):
         pass
+        
+
+
+        
 
     def run_strategy(self):
         for i in range(len(self.stocks.data.Close)):
@@ -349,10 +379,13 @@ class strategy:
                 if self.tradetype == 'long':
                     self.risk.update_stop_loss(self.buy_price,i,self.tradetype,self.stop_loss)
                     self.risk.update_take_profit(self.buy_price,i,self.tradetype,self.take_profit)
+                    self.check()
                 elif self.tradetype == 'short':
                     self.risk.update_stop_loss(self.sell_price,i,self.tradetype,self.stop_loss)
                     self.risk.update_take_profit(self.sell_price,i,self.tradetype,self.take_profit)
-            self.condition(i)
+                    self.check()
+            else:
+                self.condition(i)
         
         print(self.trades)
         summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-10000,2),self.number,round(((self.capital-10000)/10000)*100,2)]

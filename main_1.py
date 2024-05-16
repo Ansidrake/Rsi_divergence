@@ -6,8 +6,6 @@ import talib
 import warnings
 warnings.filterwarnings('ignore')
 
-
-
 class Stocks:
     
     def __init__(self,ticker,interval):
@@ -25,7 +23,7 @@ class Stocks:
             self.fetch_data()
             self.data.to_csv(f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv")  
         
-        print(self.data)
+        #print(self.data)
 
     def load_data(self):
         filename = f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv"  
@@ -35,7 +33,7 @@ class Stocks:
     def fetch_data(self):
         
         df_list = []
-        data = yf.download(self.ticker, group_by="Ticker", period='2d',interval=self.interval,progress=False)
+        data = yf.download(self.ticker, group_by="Ticker", period='7d',interval=self.interval,progress=False)
         df_list.append(data)
         df = pd.concat(df_list)
         
@@ -116,9 +114,10 @@ class Stocks:
                 temp = self.data[name].iloc[i]
             else:
                 gradient[i] = gradient[i-1] 
+
         self.data[name_gradient] = gradient
 
-Tsla = Stocks('TSLA','5m')
+#Tsla = Stocks('TSLA','5m')
 
 summary = pd.DataFrame(columns=['Ticker', 'P/L', 'No.of trades', 'Return (%)'])
 
@@ -129,6 +128,7 @@ class Risk:
         self.type = type
     
     def set_stop_loss(self,entry_price,index,entry_type):
+        stop_loss = 0
         if self.type == 'atr':
             if entry_type == 'long':
                 stop_loss = entry_price - 2 * self.data.atr[index]
@@ -145,6 +145,7 @@ class Risk:
 
 
     def update_stop_loss(self,entry_price,current_index,entry_type,last_stop):
+        stop_loss = last_stop
         if self.type == 'atr':
             if entry_type == 'long':
                 temp = self.data.Low[current_index] - 2 * self.data.atr[current_index]
@@ -158,6 +159,7 @@ class Risk:
                     stop_loss = temp
                 else:
                     stop_loss = last_stop         
+        
         elif self.type == 'adjusting':
             stop_loss = last_stop
             
@@ -202,6 +204,7 @@ class Risk:
             
     
     def set_take_profit(self,entry_price,index,entry_type):
+        take_profit = 0
         if self.type == 'atr':
             if entry_type == 'long':
                 take_profit = entry_price + 2 * self.data.atr[index]
@@ -267,11 +270,11 @@ class Risk:
 class strategy:
     def __init__(self,ticker,risk_strategy):
         self.start_time = time.time()
-        stocks =  Stocks(ticker)
+        stocks =  Stocks(ticker,'5m')
         self.stocks = stocks
         # uncomment the risk strategy you want to apply
         
-        risk = Risk(self.stocks.data,risk_strategy)
+        self.risk = Risk(self.stocks.data,risk_strategy)
         
         self.capital = 100000
         self.open_position = False
@@ -282,19 +285,21 @@ class strategy:
         self.tradetype = None
         self.trades = pd.DataFrame(columns=['Buy price', 'Sell price', 'Quantity','Trade type', 'PNL', 'Return (%)','Capital'])
         self.trades.loc[0] = [0,0,0,'None',0,0,10000]
-        self.take_profit = None
-        self.stop_loss = None
+        self.take_profit = 0
+        self.stop_loss = 0
         
         self.number = 0
     
     def reinitialize(self):
             self.buy_price,self.buy_qty,self.sell_price,self.sell_qty = 0,0,0,0
             self.open_position = False
+            if self.risk.type == 'adjusted':
+                self.adjusted = 0
             self.tradetype = None
-            self.take_profit = None
-            self.stop_loss = None
+            self.take_profit = 0
+            self.stop_loss = 0
 
-    def long(self,index,qty):
+    def long(self,index,qty = 0):
         # Squarring off
         if self.open_position:
             self.buy_price = self.stocks.data.price[index]
@@ -313,10 +318,13 @@ class strategy:
                 self.buy_qty = self.capital // self.buy_price
             self.open_position = True
             self.tradetype = 'long'
+            self.risk.set_stop_loss(self.buy_price,index,self.tradetype)
+            if self.risk.type == 'adjusted':
+                self.adjusted = self.buy_qty // 4
             self.number += 1
     
 
-    def short(self,index,qty):
+    def short(self,index,qty = 0):
         # Squarring off
         if self.open_position:
             self.sell_price = self.stocks.data.price[index]
@@ -338,10 +346,98 @@ class strategy:
                 self.sell_qty = self.capital // self.sell_price
             self.open_position = True
             self.tradetype = 'short'
+            self.risk.set_stop_loss(self.sell_price,index,self.tradetype)
+            if self.risk.type == 'adjusted':
+                self.adjusted = self.sell_qty // 4
             self.number += 1
+    
+    def regular_bullish_divergence(self,index):
+        for i in range(3):
+            if self.stocks.data.gradient_low_rsi[index-i] > 0 and self.stocks.data.gradient_low[index-i] < 0:
+                return True
+        return False
+    
+    def hidden_bullish_divergence(self,index):
+        for i in range(3):
+            if self.stocks.data.gradient_low_rsi[index-i] < 0 and self.stocks.data.gradient_low[index-i] > 0:
+                return True
+        return False
+    
+    def regular_bearish_divergence(self,index):
+        for i in range(3):
+            if self.stocks.data.gradient_high_rsi[index-i] < 0 and self.stocks.data.gradient_high[index-i] > 0:
+                return True
+        return False
+    
+    def regular_bearish_divergence(self,index):
+        for i in range(3):
+            if self.stocks.data.gradient_high_rsi[index-i] > 0 and self.stocks.data.gradient_high[index-i] < 0:
+                return True
+        return False
 
     def condition(self,index):
-        pass
+        # detect regular bullish divergence in last 3 candles ie rsi low gradient > 0 stock, pivot low gradient < 0
+        # confirm if k is greater than d 
+        if self.regular_bullish_divergence(index) and self.stocks.data.K[index] > self.stocks.data.D[index]:
+            self.long(index)
+        # detect regular bullish divergence in last 5 candles ie rsi high gradient < 0 stock, pivot high gradient > 0
+        # confirm if k is greater than d 
+        if self.regular_bearish_divergence(index) and self.stocks.data.K[index] < self.stocks.data.D[index]:
+            self.short(index)
+    
+    def check(self,index):
+        if self.risk.type == 'atr':
+            if self.tradetype == 'long':
+                if self.stop_loss > self.stocks.data.Close[index]:
+                    self.short(index,self.buy_qty)
+                    self.reinitialize()
+                elif self.take_profit < self.stocks.data.Close[index]:
+                    self.short(index,self.buy_qty)
+                    self.reinitialize()
+            elif self.tradetype == 'short':
+                if self.stop_loss < self.stocks.data.Close[index]:
+                    self.long(index,self.sell_qty)
+                    self.reinitialize()
+                elif self.take_profit > self.stocks.data.Close[index]:
+                    self.long(index,self.sell_qty)
+                    self.reinitialize()
+        
+        elif self.risk.type == 'adjusted':
+            if self.tradetype == 'long':
+                # check stoploss
+                for i in range(len(self.stop_loss)-1):
+                    if self.stop_loss[i] != 0 and self.stop_loss[i] > self.stocks.data.Close[index]:
+                        self.short(index, self.adjusted)
+                        self.stop_loss[i] = 0
+                if self.stop_loss[-1] != 0 and self.stop_loss[-1] > self.stocks.data.Close[index]:
+                    self.short(index, self.buy_qty - 3*(self.adjusted))
+                    self.reinitialize()
+                # check take profit
+                for i in range(len(self.take_profit)-1):
+                    if self.take_profit[i] != 0 and self.take_profit[i] < self.stocks.data.Close[index]:
+                        self.short(index, self.adjusted)
+                        self.stop_loss[i] = 0
+                if self.stop_loss[-1] != 0 and self.stop_loss[-1] < self.stocks.data.Close[index]:
+                    self.short(index, self.buy_qty - 3*(self.adjusted))
+                    self.reinitialize()
+                
+            if self.tradetype == 'short':
+                for i in range(len(self.stop_loss)-1):
+                    if self.stop_loss[i] != 0 and self.stop_loss[i] < self.stocks.data.Close[index]:
+                        self.long(index, self.adjusted)
+                        self.stop_loss[i] = 0
+                if self.stop_loss[-1] != 0 and self.stop_loss[-1] < self.stocks.data.Close[index]:
+                    self.long(index, self.buy_qty - 3*(self.adjusted))
+                    self.reinitialize()
+                for i in range(len(self.stop_loss)-1):
+                    if self.stop_loss[i] != 0 and self.stop_loss[i] > self.stocks.data.Close[index]:
+                        self.long(index, self.adjusted)
+                        self.stop_loss[i] = 0
+                if self.stop_loss[-1] != 0 and self.stop_loss[-1] > self.stocks.data.Close[index]:
+                    self.long(index, self.buy_qty - 3*(self.adjusted))
+                    self.reinitialize()
+                
+
 
     def run_strategy(self):
         for i in range(len(self.stocks.data.Close)):
@@ -349,17 +445,23 @@ class strategy:
                 if self.tradetype == 'long':
                     self.risk.update_stop_loss(self.buy_price,i,self.tradetype,self.stop_loss)
                     self.risk.update_take_profit(self.buy_price,i,self.tradetype,self.take_profit)
+                    self.check(i)
                 elif self.tradetype == 'short':
                     self.risk.update_stop_loss(self.sell_price,i,self.tradetype,self.stop_loss)
                     self.risk.update_take_profit(self.sell_price,i,self.tradetype,self.take_profit)
-            self.condition(i)
+                    self.check(i)
+            else:
+                self.condition(i)
         
         print(self.trades)
-        summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-10000,2),self.number,round(((self.capital-10000)/10000)*100,2)]
+        summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-100000,2),self.number,round(((self.capital-100000)/100000)*100,2)]
         
         print(self.__repr__())
 
     def __repr__(self):
         self.end_time = time.time()
-        return f"| Ticker ==> {self.stocks.ticker} | p/l ==>  {round(self.capital-10000,2)} ( {round(((self.capital-10000)/10000)*100,2)} % ) | time taken ==>  {round(self.end_time-self.start_time,2)} s |"
+        return f"| Ticker ==> {self.stocks.ticker} | p/l ==>  {round(self.capital-100000,2)} ( {round(((self.capital-100000)/100000)*100,2)} % ) | time taken ==>  {round(self.end_time-self.start_time,2)} s |"
 
+tsla = strategy('RELIANCE.NS','atr')
+tsla.run_strategy()
+summary.to_csv('summary.csv')
