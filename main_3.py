@@ -403,7 +403,7 @@ class strategy:
     def check(self,index):
         if self.risk.type == 'atr':
             if self.tradetype == 'long':
-                if self.stocks.data.K[index] < self.stocks.data.D[index] :
+                if self.stocks.data.K[index] < self.stocks.data.D[index] and self.stocks.data.K[index] >80:
                     self.short(index)
                     self.reinitialize()
                 if self.stop_loss > self.stocks.data.Close[index]:
@@ -413,7 +413,7 @@ class strategy:
                     self.short(index,self.buy_qty)
                     self.reinitialize()
             elif self.tradetype == 'short':
-                if self.stocks.data.K[index] > self.stocks.data.D[index] :
+                if self.stocks.data.K[index] > self.stocks.data.D[index] and self.stocks.data.K[index] <20:
                     self.long(index)
                     self.reinitialize()
                 if self.stop_loss < self.stocks.data.Close[index]:

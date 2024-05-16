@@ -33,7 +33,7 @@ class Stocks:
     def fetch_data(self):
         
         df_list = []
-        data = yf.download(self.ticker, group_by="Ticker", period='7d',interval=self.interval,progress=False)
+        data = yf.download(self.ticker, group_by="Ticker", period='60d',interval=self.interval,progress=False)
         df_list.append(data)
         df = pd.concat(df_list)
         
@@ -69,7 +69,7 @@ class Stocks:
     
     def stoch(self):
         # Normal implementation of stoch rsi incorrect in talib so correct code corresponding to values in github taken
-        # https://gist.github.com/ultragtx/6831eb04dfe9e6ff50d0f334bdcb847d
+        # https://gist.github.com/ultragtx/6831eb04dfe9e6ff50d0f334bdcb8460d
         period=14
         smoothK=3
         smoothD=3
@@ -117,7 +117,7 @@ class Stocks:
 
         self.data[name_gradient] = gradient
 
-#Tsla = Stocks('TSLA','2m')
+#Tsla = Stocks('TSLA','5m')
 
 summary = pd.DataFrame(columns=['Ticker', 'P/L', 'No.of trades', 'Return (%)','Win %','Avg_win_value','Avg_loss_value'])
 
@@ -270,7 +270,7 @@ class Risk:
 class strategy:
     def __init__(self,ticker,risk_strategy):
         self.start_time = time.time()
-        stocks =  Stocks(ticker,'2m')
+        stocks =  Stocks(ticker,'5m')
         self.stocks = stocks
         # uncomment the risk strategy you want to apply
         
@@ -394,11 +394,11 @@ class strategy:
     def condition(self,index):
         # detect regular bullish divergence in last 3 candles ie rsi low gradient > 0 stock, pivot low gradient < 0
         # confirm if k is greater than d 
-        if self.regular_bullish_divergence(index) and self.stocks.data.K[index] > self.stocks.data.D[index]:
+        if self.regular_bullish_divergence(index) and self.stocks.data.K[index] > self.stocks.data.D[index] and self.stocks.data.K[index] <20:
             self.long(index)
         # detect regular bullish divergence in last 5 candles ie rsi high gradient < 0 stock, pivot high gradient > 0
         # confirm if k is greater than d 
-        if self.regular_bearish_divergence(index) and self.stocks.data.K[index] < self.stocks.data.D[index]:
+        if self.regular_bearish_divergence(index) and self.stocks.data.K[index] < self.stocks.data.D[index] and self.stocks.data.K[index] >80:
             self.short(index)
     
     def check(self,index):
@@ -491,5 +491,5 @@ for ticker in tickers:
     except Exception as e:
         print(e)
     progress_bar.update()
-summary.to_csv("summary_2m.csv")
+summary.to_csv("summary_5m.csv")
 
