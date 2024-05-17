@@ -4,6 +4,8 @@ import time
 from tqdm import tqdm
 import talib 
 import warnings
+import pandas_ta as ta
+
 warnings.filterwarnings('ignore')
 
 class Stocks:
@@ -43,6 +45,7 @@ class Stocks:
         
         # execution price taken as next day's open
         self.data['price'] = self.data.Open.shift(-1)
+        self.ema()
         self.data = self.data.dropna()
 
         # calculating nessecary values using the below functions
@@ -59,7 +62,10 @@ class Stocks:
 
 
         #self.data = self.data.dropna()
-        
+    
+    def ema(self):
+        self.data["EMA50"] = ta.ema(self.data.Close, length=50)
+    
 
     def rsi(self):
         # Using the talib library to calculate the values
@@ -215,7 +221,7 @@ class Risk:
                 tp = entry_price + (entry_price - self.data.Pivot_low[index])
                 take_profit = [tp]*4
             elif entry_type == 'short':
-                sl = entry_price - (entry_price - self.data.Pivot_high[index])
+                tp = entry_price - (entry_price - self.data.Pivot_high[index])
                 take_profit = [tp]*4
         return take_profit
 
@@ -233,7 +239,6 @@ class Risk:
         
         elif self.type == 'adjusting':
             take_profit = last_tp
-            
             if entry_type == 'long':
                 treshold = entry_price - self.data.Pivot_low[current_index]
                 best_case = [entry_price + i * treshold for i in range(1,5)]
@@ -249,7 +254,7 @@ class Risk:
                 elif best_case[1] <= current_price <= best_case[2]:
                     if best_case[1] + check < current_price:
                         take_profit = [best_case[0],best_case[1],best_case[2],best_case[3]]
-            
+
             elif entry_type == 'short':
                 treshold = entry_price - self.data.Pivot_high[current_index]
                 best_case = [entry_price - i * treshold for i in range(1,5)]
@@ -283,11 +288,11 @@ class strategy:
         self.sell_price = 0
         self.sell_qty = 0
         self.tradetype = None
-        self.trades = pd.DataFrame(columns=['Buy price', 'Sell price', 'Quantity','Trade type', 'PNL', 'Return (%)','Capital'])
-        self.trades.loc[0] = [0,0,0,'None',0,0,100000]
+        self.trades = pd.DataFrame(columns=['Buy price', 'Sell price', 'Quantity','Trade type', 'PNL', 'Return (%)','Capital','Remark','PNL'])
+        self.trades.loc[0] = [0,0,0,'None',0,0,100000,'',0]
         self.take_profit = [0]*4
         self.stop_loss = [1000000] * 4
-        
+        self.remarks = ''
         self.number = 0
         self.win = 0
         self.w = 0
@@ -317,7 +322,7 @@ class strategy:
             else:
                 self.loss +=1
                 self.l += pnl
-            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,qty,self.tradetype,pnl,pnl_percent,self.capital]
+            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,qty,self.tradetype,pnl,pnl_percent,self.capital,self.remarks,pnl]
             self.number += 1
             
         else:
@@ -348,7 +353,7 @@ class strategy:
             else:
                 self.loss +=1
                 self.l += pnl
-            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,qty,self.tradetype,pnl,pnl_percent,self.capital]
+            self.trades.loc[len(self.trades.index)] = [self.buy_price,self.sell_price,qty,self.tradetype,pnl,pnl_percent,self.capital,self.remarks,pnl]
             
         else:
             self.sell_price = self.stocks.data.price[index]
@@ -427,11 +432,10 @@ class strategy:
                 for i in range(len(self.take_profit)-1):
                     if self.take_profit[i] != 0 and self.take_profit[i] < self.stocks.data.Close[index]:
                         self.short(index, self.adjusted)
-                        self.stop_loss[i] = 0
-                if self.stop_loss[-1] != 0 and self.stop_loss[-1] < self.stocks.data.Close[index]:
+                        self.take_profit[i] = 0
+                if self.take_profit[-1] != 0 and self.take_profit[-1] < self.stocks.data.Close[index]:
                     self.short(index, self.buy_qty - 3*(self.adjusted))
                     self.reinitialize()
-                
             if self.tradetype == 'short':
                 for i in range(len(self.stop_loss)-1):
                     if self.stop_loss[i] != 0 and self.stop_loss[i] < self.stocks.data.Close[index]:
@@ -440,14 +444,14 @@ class strategy:
                 if self.stop_loss[-1] != 0 and self.stop_loss[-1] < self.stocks.data.Close[index]:
                     self.long(index, self.buy_qty - 3*(self.adjusted))
                     self.reinitialize()
-                for i in range(len(self.stop_loss)-1):
-                    if self.stop_loss[i] != 0 and self.stop_loss[i] > self.stocks.data.Close[index]:
+                for i in range(len(self.take_profit)-1):
+                    if self.take_profit[i] != 0 and self.take_profit[i] > self.stocks.data.Close[index]:
                         self.long(index, self.adjusted)
-                        self.stop_loss[i] = 0
-                if self.stop_loss[-1] != 0 and self.stop_loss[-1] > self.stocks.data.Close[index]:
+                        self.take_profit[i] = 0
+                if self.take_profit[-1] != 0 and self.take_profit[-1] > self.stocks.data.Close[index]:
                     self.long(index, self.buy_qty - 3*(self.adjusted))
                     self.reinitialize()
-                
+            
 
 
     def run_strategy(self):
@@ -464,8 +468,10 @@ class strategy:
             else:
                 self.condition(i)
         
+        
         #print(self.trades)
-        summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-100000,2),self.number,round(((self.capital-100000)/100000)*100,2),round(((self.win)/(self.win+self.loss))*100,2),round(((self.w)/(self.win))*100,2),round(((self.l)/(self.loss))*100,2)]
+        #summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-100000,2),self.number,round(((self.capital-100000)/100000)*100,2),round(((self.win)/(self.win+self.loss))*100,2),round(((self.w)/(self.win))*100,2),round(((self.l)/(self.loss))*100,2)]
+        self.trades.to_csv(f"rsi_divergence/trades/{self.stocks.ticker}_trades.csv")
         
         print(self.__repr__())
 

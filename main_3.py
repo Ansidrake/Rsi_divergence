@@ -4,6 +4,8 @@ import time
 from tqdm import tqdm
 import talib 
 import warnings
+import pandas_ta as ta
+
 warnings.filterwarnings('ignore')
 
 class Stocks:
@@ -43,6 +45,7 @@ class Stocks:
         
         # execution price taken as next day's open
         self.data['price'] = self.data.Open.shift(-1)
+        self.ema()
         self.data = self.data.dropna()
 
         # calculating nessecary values using the below functions
@@ -59,7 +62,10 @@ class Stocks:
 
 
         #self.data = self.data.dropna()
-        
+
+    
+    def ema(self):
+        self.data["EMA50"] = ta.ema(self.data.Close, length=50)
 
     def rsi(self):
         # Using the talib library to calculate the values
@@ -485,7 +491,7 @@ class strategy:
 
 tsla = strategy('RELIANCE.NS','atr')
 tsla.run_strategy()
-tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:100]
+tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:10]
 
 progress_bar = tqdm(tickers)
 
@@ -496,5 +502,5 @@ for ticker in tickers:
     except Exception as e:
         print(e)
     progress_bar.update()
-summary.to_csv('summary_3_15m.csv')
+summary.to_csv('rsi_divergence/summary/summary_3_15m.csv')
 
