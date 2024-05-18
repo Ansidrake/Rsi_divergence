@@ -694,12 +694,12 @@ class strategy:
 
 ticker = ['BHARTIARTL.NS','BAJFINANCE.NS','HDFCLIFE.NS','TITAN.NS','BAJAJ-AUTO.NS','KOTAKBANK.NS','ONGC.NS','HINDALCONS','ADANIENT.NS','TATASTEELINS','NTPC.NS','CIPLA.NS','LTIM.NS','APOLLOHOSP.NS','BAJAJFINSV.NS','NESTLEIND.NS','ITC.NS','TCS.NS','INDUSINDBK.NS','TATACONSUM.NS','RELIANCE.NS','BRITANNIA.NS','MARUTI.NS','ULTRACEMCO.NS','LT.NS','COALINDIA.NS','WIPRO.NS','HEROMOTOCO.NS','SHRIKRAMFIN.NS']
 
-tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker']
+tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:60]
 
 # download data
-progress_bar = tqdm(tickers)
+progress_bar = tqdm(ticker)
 
-for ticker in tickers:
+for ticker in ticker:
     try:
         stock_short = Stocks(ticker,'5m')
         stock_long = Stocks(ticker,'30m')
@@ -709,48 +709,43 @@ for ticker in tickers:
 
 
 # run strategy 
-#progress_bar = tqdm(tickers)
-#
-#for ticker in tickers:
-#    try:
-#        tick = strategy(ticker,'atr','single','5m')
-#        tick.run_strategy()
-#    except Exception as e:
-#        print(e)
-#    progress_bar.update()
-#summary.to_csv("rsi_divergence/summary/summary_atr_single_5m.csv")
+progress_bar = tqdm(ticker)
 
-#progress_bar = tqdm(tickers)
-#
-#for ticker in tickers:
-#    try:
-#        tick = strategy(ticker,'atr','multi','5m')
-#        tick.run_strategy()
-#    except Exception as e:
-#        print(e)
-#    progress_bar.update()
-#summary.to_csv("rsi_divergence/summary/summary_atr_multi_5m.csv")
+for ticker in ticker:
+    try:
+        tick = strategy(ticker,'atr','single','5m')
+        tick.run_strategy()
+    except Exception as e:
+        print(e)
+    progress_bar.update()
+summary.to_csv("rsi_divergence/summary/summary_atr_single_5m.csv")
+progress_bar = tqdm(ticker)
 
-#progress_bar = tqdm(tickers)
-#
-#for ticker in tickers:
-#    try:
-#        tick = strategy(ticker,'adjusted','single','5m')
-#        tick.run_strategy()
-#    except Exception as e:
-#        print(e)
-#    progress_bar.update()
-#summary.to_csv("rsi_divergence/summary/summary_adjusted_single_5m.csv")
+for ticker in ticker:
+    try:
+        tick = strategy(ticker,'atr','multi','5m')
+        tick.run_strategy()
+    except Exception as e:
+        print(e)
+    progress_bar.update()
+summary.to_csv("rsi_divergence/summary/summary_atr_multi_5m.csv")
+progress_bar = tqdm(ticker)
 
-#progress_bar = tqdm(tickers)
-#
-#for ticker in tickers:
-#    try:
-#        tick = strategy(ticker,'adjusted','multi','5m')
-#        tick.run_strategy()
-#    except Exception as e:
-#        print(e)
-#    progress_bar.update()
-#summary.to_csv("rsi_divergence/summary/summary_adjusted_multi_5m.csv")
+for ticker in ticker:
+    try:
+        tick = strategy(ticker,'adjusted','single','5m')
+        tick.run_strategy()
+    except Exception as e:
+        print(e)
+    progress_bar.update()
+summary.to_csv("rsi_divergence/summary/summary_adjusted_single_5m.csv")
+progress_bar = tqdm(ticker)
 
-
+for ticker in ticker:
+    try:
+        tick = strategy(ticker,'adjusted','multi','5m')
+        tick.run_strategy()
+    except Exception as e:
+        print(e)
+    progress_bar.update()
+summary.to_csv("rsi_divergence/summary/summary_adjusted_multi_5m.csv")
