@@ -4,9 +4,55 @@ import time
 from tqdm import tqdm
 import talib 
 import pandas_ta as ta
-
 import warnings
 warnings.filterwarnings('ignore')
+
+
+
+
+"""
+The framework of the code is as follows diagrams made by gpt
+
+  +-----------------------------------+
+  |             Class: Stocks         |
+  +-----------------------------------+
+  | + fetch_data()                    |
+  | + rsi()                           |
+  | + stoch()                         |
+  | + atr()                           |
+  | + pivot()                         |
+  | + gradient()                      |
+  | + regular_divergence()            |
+  | + hidden_divergence()             |
+  +-----------------------------------+
+              |                           |
+              |                           |
+              v                           v
+  +-----------------------------------+
+  |             Class: Risk           |
+  +-----------------------------------+
+  | + set_stop_loss()                 |
+  | + update_stop_loss()              |
+  | + set_take_profit()               |
+  | + update_take_profit()            |
+  +-----------------------------------+
+              |                           |
+              |                           |
+              v                           v
+  +-----------------------------------+
+  |            Class: Strategy        |
+  +-----------------------------------+
+  | + __init__()                      |
+  | + reinitialize()                  |
+  | + long()                          |
+  | + short()                         |
+  | + condition()                     |
+  | + check()                         |
+  | + run_strategy()                  |
+  +-----------------------------------+
+
+"""
+
 
 class Stocks:
     
@@ -28,7 +74,7 @@ class Stocks:
             self.date,self.time = date,time
         
         except:
-            print('not using cache')
+            #print('not using cache')
             self.fetch_data()
             location = f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv"
             self.data.to_csv(location,date_format='%Y%m%d%H%M%S')
@@ -194,14 +240,24 @@ class Stocks:
                     signal[index] = 1
         self.data['hidden_bearish_divergence'] = signal
 
-    
+"""
 
+              |                           
+              |                           
+              v                           
+  +-----------------------------------+
+  |             Class: Risk           |
+  +-----------------------------------+
+  | + set_stop_loss()                 |
+  | + update_stop_loss()              |
+  | + set_take_profit()               |
+  | + update_take_profit()            |
+  +-----------------------------------+
+              |                           
+              |                           
+              v                         
+"""    
 
-#tsla = Stocks('TSLA','5m')
-#for i in range(len(tsla.data.Date)):
-#    print(tsla.data.Date[i])
-
-summary = pd.DataFrame(columns=['Ticker', 'P/L', 'No.of trades', 'Return (%)','Win %','Avg_win_value','Avg_loss_value'])
 
 class Risk:
     def __init__(self, data, type):
@@ -350,6 +406,33 @@ class Risk:
                         take_profit = [best_case[0],best_case[1],best_case[2],best_case[3]]
         return take_profit
 
+
+"""
+
+
+              |                           
+              |                           
+              v                           
+  +-----------------------------------+
+  |            Class: Strategy        |
+  +-----------------------------------+
+  | + __init__()                      |
+  | + reinitialize()                  |
+  | + long()                          |
+  | + short()                         |
+  | + condition()                     |
+  | + check()                         |
+  | + run_strategy()                  |
+  +-----------------------------------+
+
+
+  
+  
+"""
+
+
+summary = pd.DataFrame(columns=['Ticker', 'P/L', 'No.of trades', 'Return (%)','Win %','Avg_win_value','Avg_loss_value'])
+
 class strategy:
     def __init__(self,ticker,risk_strategy,strategy,timeframe):
         self.start_time = time.time()
@@ -491,9 +574,6 @@ class strategy:
             if self.longer.data['hidden_bearish_divergence'].iloc[long_index] == 1:
                 #if self.stocks.data.regular_bearish_divergence[index] == 1 and self.stocks.data.Close < self.stocks.data.EMA50[index]:
                     self.short(index)
-            
-                
-                
     
     def check(self,index):
         if self.risk.type == 'atr':
@@ -588,28 +668,44 @@ class strategy:
         except Exception as e:
             print(e)
         self.trades.to_csv(f"rsi_divergence/trades/{self.stocks.ticker}_{self.strategy}_{self.timeframe}_{self.risk_strategy}_trades.csv")
-        print(self.__repr__())
+        #print(self.__repr__())
 
     def __repr__(self):
         self.end_time = time.time()
         return f"| Ticker ==> {self.stocks.ticker} | p/l ==>  {round(self.capital-100000,2)} ( {round(((self.capital-100000)/100000)*100,2)} % ) | time taken ==>  {round(self.end_time-self.start_time,2)} s |"
+
+"""
+
+
+
+  +-----------------------------------+
+  | Overall Running Section           |
+  +-----------------------------------+
+  | + Download data                   |
+  | + Run strategy                    |
+  | + Store results                   |
+  +-----------------------------------+
+
+
+  
+"""
+
+
+
 ticker = ['BHARTIARTL.NS','BAJFINANCE.NS','HDFCLIFE.NS','TITAN.NS','BAJAJ-AUTO.NS','KOTAKBANK.NS','ONGC.NS','HINDALCONS','ADANIENT.NS','TATASTEELINS','NTPC.NS','CIPLA.NS','LTIM.NS','APOLLOHOSP.NS','BAJAJFINSV.NS','NESTLEIND.NS','ITC.NS','TCS.NS','INDUSINDBK.NS','TATACONSUM.NS','RELIANCE.NS','BRITANNIA.NS','MARUTI.NS','ULTRACEMCO.NS','LT.NS','COALINDIA.NS','WIPRO.NS','HEROMOTOCO.NS','SHRIKRAMFIN.NS']
 
-tsla = strategy('TSLA','atr','multi','5m')
-tsla.run_strategy()
-tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:1]
+tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker']
 
 # download data
 progress_bar = tqdm(tickers)
+
 for ticker in tickers:
     try:
         stock_short = Stocks(ticker,'5m')
         stock_long = Stocks(ticker,'30m')
-        
     except Exception as e:
         print(e)
     progress_bar.update()
-
 
 
 # run strategy 
@@ -617,11 +713,44 @@ for ticker in tickers:
 #
 #for ticker in tickers:
 #    try:
-#        tick = strategy(ticker,'atr')
+#        tick = strategy(ticker,'atr','single','5m')
 #        tick.run_strategy()
 #    except Exception as e:
 #        print(e)
 #    progress_bar.update()
-#summary.to_csv("rsi_divergence/summary/summary_5m.csv")
+#summary.to_csv("rsi_divergence/summary/summary_atr_single_5m.csv")
+
+#progress_bar = tqdm(tickers)
 #
+#for ticker in tickers:
+#    try:
+#        tick = strategy(ticker,'atr','multi','5m')
+#        tick.run_strategy()
+#    except Exception as e:
+#        print(e)
+#    progress_bar.update()
+#summary.to_csv("rsi_divergence/summary/summary_atr_multi_5m.csv")
+
+#progress_bar = tqdm(tickers)
 #
+#for ticker in tickers:
+#    try:
+#        tick = strategy(ticker,'adjusted','single','5m')
+#        tick.run_strategy()
+#    except Exception as e:
+#        print(e)
+#    progress_bar.update()
+#summary.to_csv("rsi_divergence/summary/summary_adjusted_single_5m.csv")
+
+#progress_bar = tqdm(tickers)
+#
+#for ticker in tickers:
+#    try:
+#        tick = strategy(ticker,'adjusted','multi','5m')
+#        tick.run_strategy()
+#    except Exception as e:
+#        print(e)
+#    progress_bar.update()
+#summary.to_csv("rsi_divergence/summary/summary_adjusted_multi_5m.csv")
+
+
