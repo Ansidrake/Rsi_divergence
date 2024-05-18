@@ -597,7 +597,7 @@ ticker = ['BHARTIARTL.NS','BAJFINANCE.NS','HDFCLIFE.NS','TITAN.NS','BAJAJ-AUTO.N
 
 tsla = strategy('TSLA','atr','multi','5m')
 tsla.run_strategy()
-tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:100]
+tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:1]
 
 # download data
 progress_bar = tqdm(tickers)
@@ -609,8 +609,6 @@ for ticker in tickers:
     except Exception as e:
         print(e)
     progress_bar.update()
-summary.to_csv("rsi_divergence/summary/summary_5m.csv")
-
 
 
 
