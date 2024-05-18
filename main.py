@@ -19,20 +19,20 @@ class Stocks:
         # load data from cache if exists else call historical data and calculate all nessecary values
         try:
             self.data = self.load_data()
-            
-        except:
-            print('not using cache')
-            self.fetch_data()
-            location = f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv"
-            self.data.to_csv(location,date_format='%Y%m%d%H%M%S')
-            datetime = pd.read_csv(location)['Datetime']
+            datetime = pd.read_csv(f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv")['Datetime']
             date,time = [],[]
             for dt in datetime:
                 dt = str(dt)
                 date.append(str(dt[:6]))
                 time.append(str(dt[6:]))
+            self.date,self.time = date,time
+        
+        except:
+            print('not using cache')
+            self.fetch_data()
+            location = f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv"
             self.data.to_csv(location,date_format='%Y%m%d%H%M%S')
-            self.data['date'],self.data['time'] = date,time
+            self.data.to_csv(location,date_format='%Y%m%d%H%M%S')
             self.pivot('high',self.data.High,'Pivot_high','gradient_high','pivot_index_high_prev','pivot_index_high_next')
             self.pivot('high',self.data.rsi,'Pivot_high_rsi','gradient_high_rsi','pivot_index_high_rsi_prev','pivot_index_high_rsi_next')
             self.pivot('low',self.data.Low,'Pivot_low','gradient_low','pivot_index_low_prev','pivot_index_low_next')
@@ -42,12 +42,17 @@ class Stocks:
             self.regular_bearish_divergence()
             self.hidden_bearish_divergence()
             self.data.to_csv(location,date_format='%Y%m%d%H%M%S')
-        #print(self.data)
-
+            datetime = pd.read_csv(location)['Datetime']
+            date,time = [],[]
+            for dt in datetime:
+                dt = str(dt)
+                date.append(str(dt[:6]))
+                time.append(str(dt[6:]))
+            self.date,self.time = date,time
+        
     def load_data(self):
-        filename = f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv"  
-
-        return pd.read_csv(filename, index_col=0)
+        filename = f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv"
+        return pd.read_csv(filename)
 
     def fetch_data(self):
         
@@ -68,11 +73,11 @@ class Stocks:
         # calculating nessecary values using the below functions
         self.rsi()
         self.stoch()
-        self.data = self.data.dropna()
+        #self.data = self.data.dropna()
 
         self.atr()
 
-        #self.data = self.data.dropna()
+        self.data = self.data.dropna()
     
     def ema(self):
         self.data["EMA50"] = ta.ema(self.data.Close, length=50)
@@ -81,8 +86,7 @@ class Stocks:
         # Using the talib library to calculate the values
         self.data['rsi'] = talib.RSI(self.data.Close, timeperiod=14)
         self.data = self.data.dropna()
-        #print(self.data)
-    
+        
     def stoch(self):
         # Normal implementation of stoch rsi incorrect in talib so correct code corresponding to values in github taken
         # https://gist.github.com/ultragtx/6831eb04dfe9e6ff50d0f334bdcb8460d
@@ -205,8 +209,8 @@ class Risk:
         # risk management strategy type
         self.type = type
     
-    def set_stop_loss(self,entry_price,index,entry_type):
-        stop_loss = 0
+    def set_stop_loss(self,entry_price,index,entry_type,initial):
+        stop_loss = initial
         if self.type == 'atr':
             if entry_type == 'long':
                 stop_loss = entry_price - 2 * self.data.atr[index]
@@ -283,8 +287,8 @@ class Risk:
         return stop_loss
             
     
-    def set_take_profit(self,entry_price,index,entry_type):
-        take_profit = 0
+    def set_take_profit(self,entry_price,index,entry_type,initial):
+        take_profit = initial
         if self.type == 'atr':
             if entry_type == 'long':
                 take_profit = entry_price + 2 * self.data.atr[index]
@@ -355,11 +359,12 @@ class strategy:
         # uncomment the risk strategy you want to apply
         
         self.risk = Risk(self.stocks.data,risk_strategy)
+        self.risk_strategy = risk_strategy
         self.strategy = strategy
         if strategy == 'multi':
             self.longer = Stocks(ticker, '30m')
-            datetime = [int(str(date) + str(time)) for date, time in zip(self.stocks.data['date'], self.stocks.data['time'])]
-            datetimelong = [int(str(date) + str(time)) for date, time in zip(self.longer.data['date'], self.longer.data['time'])]
+            datetime = [int(str(date) + str(time)) for date, time in zip(self.stocks.date, self.stocks.time)]
+            datetimelong = [int(str(date) + str(time)) for date, time in zip(self.longer.date, self.longer.time)]
             datetime_long = [None] * len(datetime)
             i, j = 0, 0
             while j < len(datetime):
@@ -424,10 +429,8 @@ class strategy:
             elif self.risk.type == 'adjusting':
                 self.take_profit = [1000000]*4
                 self.stop_loss = [0] * 4
-            #print(self.stop_loss,self.take_profit)
-            self.stop_loss = self.risk.set_stop_loss(self.sell_price,index,self.tradetype)
-            self.take_profit = self.risk.set_take_profit(self.sell_price,index,self.tradetype)
-            #print(self.stop_loss,self.take_profit)
+            self.stop_loss = self.risk.set_stop_loss(self.sell_price,index,self.tradetype,self.stop_loss)
+            self.take_profit = self.risk.set_take_profit(self.sell_price,index,self.tradetype,self.take_profit)
             if self.risk.type == 'adjusting':
                 self.adjusted = self.buy_qty // 4
             self.number += 1
@@ -460,10 +463,8 @@ class strategy:
             elif self.risk.type == 'adjusting':
                 self.take_profit = [0]*4
                 self.stop_loss = [1000000] * 4
-            #print(self.stop_loss,self.take_profit)
-            self.stop_loss = self.risk.set_stop_loss(self.sell_price,index,self.tradetype)
-            self.take_profit = self.risk.set_take_profit(self.sell_price,index,self.tradetype)
-            #print(self.stop_loss,self.take_profit)
+            self.stop_loss = self.risk.set_stop_loss(self.sell_price,index,self.tradetype,self.stop_loss)
+            self.take_profit = self.risk.set_take_profit(self.sell_price,index,self.tradetype,self.take_profit)
             if self.risk.type == 'adjusting':
                 self.adjusted = self.sell_qty // 4
             self.number += 1
@@ -476,14 +477,12 @@ class strategy:
             pass
         elif self.strategy == 'single':
             if self.stocks.data.regular_bullish_divergence[index] == 1 and self.stocks.data.K[index] > self.stocks.data.D[index] and self.stocks.data.K[index] <20:
-                #print('long')
                 self.long(index)
             # detect regular bullish divergence in last 5 candles ie rsi high gradient < 0 stock, pivot high gradient > 0
             # confirm if k is greater than d 
             if self.stocks.data.regular_bearish_divergence[index] == 1 and self.stocks.data.K[index] < self.stocks.data.D[index] and self.stocks.data.K[index] >80:
-                #print('short')
                 self.short(index)
-            
+                
         elif self.strategy == 'multi':
             long_index = int(self.datetimelong[index])
             if self.longer.data['hidden_bullish_divergence'].iloc[long_index] == 1:
@@ -505,12 +504,10 @@ class strategy:
                 #    self.remarks = 'tp'
                 if self.stop_loss > self.stocks.data.Close[index]:
                     self.short(index,self.buy_qty)
-                    #print(self.buy_price,self.stop_loss,self.take_profit,self.tradetype)
                     self.reinitialize()
                     self.remarks = 'sl'
                 elif self.take_profit < self.stocks.data.Close[index]:
                     self.short(index,self.buy_qty)
-                    #print(self.buy_price,self.stop_loss,self.take_profit,self.tradetype)
                     self.reinitialize()
                     self.remarks = 'tp'
             elif self.tradetype == 'short':
@@ -520,12 +517,10 @@ class strategy:
                 #    self.remarks = 'tp'
                 if self.stop_loss < self.stocks.data.Close[index]:
                     self.long(index,self.sell_qty)
-                    #print(self.sell_price,self.stop_loss,self.take_profit,self.tradetype)
                     self.reinitialize()
                     self.remarks = 'sl'
                 elif self.take_profit > self.stocks.data.Close[index]:
                     self.long(index,self.sell_qty)
-                    #print(self.buy_price,self.stop_loss,self.take_profit,self.tradetype)
                     self.reinitialize()
                     self.remarks = 'tp'
         
@@ -550,7 +545,6 @@ class strategy:
                         self.remarks = f"tp{i+1}"
                 if self.take_profit[-1] != 0 and self.take_profit[-1] < self.stocks.data.Close[index]:
                     self.remarks = 'tp4'
-                    print()
                     self.short(index, self.buy_qty - 3*(self.adjusted))
                     self.reinitialize()
             if self.tradetype == 'short':
@@ -577,24 +571,23 @@ class strategy:
 
     def run_strategy(self):
         for i in range(len(self.stocks.data.Close)):
-            
             if self.open_position:
                 if self.tradetype == 'long':
                     self.stop_loss = self.risk.update_stop_loss(self.buy_price,i,self.tradetype,self.stop_loss)
                     self.take_profit = self.risk.update_take_profit(self.buy_price,i,self.tradetype,self.take_profit)
-                    #print(self.stop_loss,self.take_profit)
                     self.check(i)
                 elif self.tradetype == 'short':
                     self.stop_loss = self.risk.update_stop_loss(self.sell_price,i,self.tradetype,self.stop_loss)
                     self.take_profit = self.risk.update_take_profit(self.sell_price,i,self.tradetype,self.take_profit)
-                    #print(self.stop_loss,self.take_profit)
                     self.check(i)
             else:
                 self.condition(i)
     
-        if self.number!=0:
+        try:
             summary.loc[len(summary)] = [self.stocks.ticker,round(self.capital-100000,2),self.number,round(((self.capital-100000)/100000)*100,2),round(((self.win)/(self.win+self.loss))*100,2),round(((self.w)/(self.win))*100,2),round(((self.l)/(self.loss))*100,2)]
-        self.trades.to_csv(f"rsi_divergence/trades/{self.stocks.ticker}_{self.strategy}_{self.timeframe}_trades.csv")
+        except Exception as e:
+            print(e)
+        self.trades.to_csv(f"rsi_divergence/trades/{self.stocks.ticker}_{self.strategy}_{self.timeframe}_{self.risk_strategy}_trades.csv")
         print(self.__repr__())
 
     def __repr__(self):
@@ -602,10 +595,26 @@ class strategy:
         return f"| Ticker ==> {self.stocks.ticker} | p/l ==>  {round(self.capital-100000,2)} ( {round(((self.capital-100000)/100000)*100,2)} % ) | time taken ==>  {round(self.end_time-self.start_time,2)} s |"
 ticker = ['BHARTIARTL.NS','BAJFINANCE.NS','HDFCLIFE.NS','TITAN.NS','BAJAJ-AUTO.NS','KOTAKBANK.NS','ONGC.NS','HINDALCONS','ADANIENT.NS','TATASTEELINS','NTPC.NS','CIPLA.NS','LTIM.NS','APOLLOHOSP.NS','BAJAJFINSV.NS','NESTLEIND.NS','ITC.NS','TCS.NS','INDUSINDBK.NS','TATACONSUM.NS','RELIANCE.NS','BRITANNIA.NS','MARUTI.NS','ULTRACEMCO.NS','LT.NS','COALINDIA.NS','WIPRO.NS','HEROMOTOCO.NS','SHRIKRAMFIN.NS']
 
-tsla = strategy('TSLA','adjusting','multi','5m')
+tsla = strategy('TSLA','atr','multi','5m')
 tsla.run_strategy()
 tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:100]
 
+# download data
+progress_bar = tqdm(tickers)
+for ticker in tickers:
+    try:
+        stock_short = Stocks(ticker,'5m')
+        stock_long = Stocks(ticker,'30m')
+        
+    except Exception as e:
+        print(e)
+    progress_bar.update()
+summary.to_csv("rsi_divergence/summary/summary_5m.csv")
+
+
+
+
+# run strategy 
 #progress_bar = tqdm(tickers)
 #
 #for ticker in tickers:
