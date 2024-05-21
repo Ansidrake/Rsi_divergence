@@ -11,7 +11,7 @@ warnings.filterwarnings('ignore')
 
 
 """
-The framework of the code is as follows diagrams made by gpt
+The framework of the code is as follows 
 
   +-----------------------------------+
   |             Class: Stocks         |
@@ -668,7 +668,7 @@ class strategy:
         except Exception as e:
             print(e)
         self.trades.to_csv(f"rsi_divergence/trades/{self.stocks.ticker}_{self.strategy}_{self.timeframe}_{self.risk_strategy}_trades.csv")
-        #print(self.__repr__())
+        print(self.__repr__())
 
     def __repr__(self):
         self.end_time = time.time()
@@ -696,56 +696,62 @@ ticker = ['BHARTIARTL.NS','BAJFINANCE.NS','HDFCLIFE.NS','TITAN.NS','BAJAJ-AUTO.N
 
 tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:60]
 
+
+tsla = strategy('RELIANCE.NS','adjusting','multi','5m')
+tsla.run_strategy()
+
+
+
 # download data
-progress_bar = tqdm(ticker)
-
-for ticker in ticker:
-    try:
-        stock_short = Stocks(ticker,'5m')
-        stock_long = Stocks(ticker,'30m')
-    except Exception as e:
-        print(e)
-    progress_bar.update()
-
-
-# run strategy 
-progress_bar = tqdm(ticker)
-
-for ticker in ticker:
-    try:
-        tick = strategy(ticker,'atr','single','5m')
-        tick.run_strategy()
-    except Exception as e:
-        print(e)
-    progress_bar.update()
-summary.to_csv("rsi_divergence/summary/summary_atr_single_5m.csv")
-progress_bar = tqdm(ticker)
-
-for ticker in ticker:
-    try:
-        tick = strategy(ticker,'atr','multi','5m')
-        tick.run_strategy()
-    except Exception as e:
-        print(e)
-    progress_bar.update()
-summary.to_csv("rsi_divergence/summary/summary_atr_multi_5m.csv")
-progress_bar = tqdm(ticker)
-
-for ticker in ticker:
-    try:
-        tick = strategy(ticker,'adjusted','single','5m')
-        tick.run_strategy()
-    except Exception as e:
-        print(e)
-    progress_bar.update()
-summary.to_csv("rsi_divergence/summary/summary_adjusted_single_5m.csv")
-progress_bar = tqdm(ticker)
-
-for ticker in ticker:
-    try:
-        tick = strategy(ticker,'adjusted','multi','5m')
-        tick.run_strategy()
-    except Exception as e:
-        print(e)
-    progress_bar.update()
-summary.to_csv("rsi_divergence/summary/summary_adjusted_multi_5m.csv")
+#progress_bar = tqdm(ticker)
+#
+#for ticker in ticker:
+#    try:
+#        stock_short = Stocks('ticker','5m')
+#        stock_long = Stocks(ticker,'30m')
+#    except Exception as e:
+#        print(e)
+#    progress_bar.update()
+#
+#
+## run strategy 
+#progress_bar = tqdm(ticker)
+#
+#for ticker in ticker:
+#    try:
+#        tick = strategy(ticker,'atr','single','5m')
+#        tick.run_strategy()
+#    except Exception as e:
+#        print(e)
+#    progress_bar.update()
+#summary.to_csv("rsi_divergence/summary/summary_atr_single_5m.csv")
+#progress_bar = tqdm(ticker)
+#
+#for ticker in ticker:
+#    try:
+#        tick = strategy(ticker,'atr','multi','5m')
+#        tick.run_strategy()
+#    except Exception as e:
+#        print(e)
+#    progress_bar.update()
+#summary.to_csv("rsi_divergence/summary/summary_atr_multi_5m.csv")
+#progress_bar = tqdm(ticker)
+#
+#for ticker in ticker:
+#    try:
+#        tick = strategy(ticker,'adjusted','single','5m')
+#        tick.run_strategy()
+#    except Exception as e:
+#        print(e)
+#    progress_bar.update()
+#summary.to_csv("rsi_divergence/summary/summary_adjusted_single_5m.csv")
+#progress_bar = tqdm(ticker)
+#
+#for ticker in ticker:
+#    try:
+#        tick = strategy(ticker,'adjusted','multi','5m')
+#        tick.run_strategy()
+#    except Exception as e:
+#        print(e)
+#    progress_bar.update()
+#summary.to_csv("rsi_divergence/summary/summary_adjusted_multi_5m.csv")
