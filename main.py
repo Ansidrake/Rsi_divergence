@@ -5,6 +5,7 @@ from tqdm import tqdm
 import talib 
 import pandas_ta as ta
 import warnings
+import numpy as np
 warnings.filterwarnings('ignore')
 
 
@@ -56,54 +57,61 @@ The framework of the code is as follows
 
 class Stocks:
     
-    def __init__(self,ticker,interval):
+    def __init__(self,ticker,interval = '5m'):
         # setting self.ticker to ticker string for further uses ahead 
         self.ticker = ticker
         self.interval = interval
 
         #self.fetch_data()
         # load data from cache if exists else call historical data and calculate all nessecary values
-        try:
-            self.data = self.load_data()
-            datetime = pd.read_csv(f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv")['Datetime']
-            date,time = [],[]
-            for dt in datetime:
-                dt = str(dt)
-                date.append(str(dt[:6]))
-                time.append(str(dt[6:]))
-            self.date,self.time = date,time
-        
-        except:
-            #print('not using cache')
-            self.fetch_data()
-            location = f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv"
-            self.data.to_csv(location,date_format='%Y%m%d%H%M%S')
-            self.data.to_csv(location,date_format='%Y%m%d%H%M%S')
-            self.pivot('high',self.data.High,'Pivot_high','gradient_high','pivot_index_high_prev','pivot_index_high_next')
-            self.pivot('high',self.data.rsi,'Pivot_high_rsi','gradient_high_rsi','pivot_index_high_rsi_prev','pivot_index_high_rsi_next')
-            self.pivot('low',self.data.Low,'Pivot_low','gradient_low','pivot_index_low_prev','pivot_index_low_next')
-            self.pivot('low',self.data.rsi,'Pivot_low_rsi','gradient_low_rsi','pivot_index_low_rsi_prev','pivot_index_low_rsi_next')
-            self.regular_bullish_divergence()
-            self.hidden_bullish_divergence()
-            self.regular_bearish_divergence()
-            self.hidden_bearish_divergence()
-            self.data.to_csv(location,date_format='%Y%m%d%H%M%S')
-            datetime = pd.read_csv(location)['Datetime']
-            date,time = [],[]
-            for dt in datetime:
-                dt = str(dt)
-                date.append(str(dt[:6]))
-                time.append(str(dt[6:]))
-            self.date,self.time = date,time
-        
+        #try:
+        #    self.data = self.load_data()
+        #    datetime = pd.read_csv(f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv")['Datetime']
+        #    date,time = [],[]
+        #    for dt in datetime:
+        #        dt = str(dt)
+        #        date.append(str(dt[:6]))
+        #        time.append(str(dt[6:]))
+        #    self.date,self.time = date,time
+        #    #print(self.data.index)
+        #
+        #except:
+        #print('not using cache')
+        self.fetch_data()
+        location = f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv"
+        self.data.to_csv(location,date_format='%Y%m%d%H%M%S',index='Datetime')
+        self.pivot('high',self.data.High,'Pivot_high','gradient_high','pivot_index_high_prev','pivot_index_high_next')
+        self.pivot('high',self.data.rsi,'Pivot_high_rsi','gradient_high_rsi','pivot_index_high_rsi_prev','pivot_index_high_rsi_next')
+        self.pivot('low',self.data.Low,'Pivot_low','gradient_low','pivot_index_low_prev','pivot_index_low_next')
+        self.pivot('low',self.data.rsi,'Pivot_low_rsi','gradient_low_rsi','pivot_index_low_rsi_prev','pivot_index_low_rsi_next')
+        self.regular_bullish_divergence()
+        self.hidden_bullish_divergence()
+        self.regular_bearish_divergence()
+        self.hidden_bearish_divergence()
+        #print(self.data.index)
+    
+        self.data.to_csv(location,date_format='%Y%m%d%H%M%S',index='Datetime')
+        #print(self.data.index)
+    
+        datetime = pd.read_csv(location)['Datetime']
+        date,time = [],[]
+        for dt in datetime:
+            dt = str(dt)
+            date.append(str(dt[:6]))
+            time.append(str(dt[6:]))
+        self.date,self.time = date,time
+        #print(self.data.index)
+    
+    
     def load_data(self):
         filename = f"rsi_divergence/cache/{self.ticker}_{self.interval}_data.csv"
-        return pd.read_csv(filename)
+        return pd.read_csv(filename,parse_dates=['Datetime'], index_col='Datetime')
 
     def fetch_data(self):
         
         df_list = []
-        data = yf.download(self.ticker, group_by="Ticker", period='60d',interval=self.interval,progress=False)
+        data = yf.download(self.ticker, group_by="Ticker", period='2y',interval=self.interval,progress=False)
+        #print(data.index)
         df_list.append(data)
         df = pd.concat(df_list)
         
@@ -128,9 +136,9 @@ class Stocks:
     def ema(self):
         self.data["EMA50"] = ta.ema(self.data.Close, length=50)
     
-    def rsi(self):
+    def rsi(self,timeperiod=14):
         # Using the talib library to calculate the values
-        self.data['rsi'] = talib.RSI(self.data.Close, timeperiod=14)
+        self.data['rsi'] = talib.RSI(self.data.Close, timeperiod=timeperiod)
         self.data = self.data.dropna()
         
     def stoch(self):
@@ -147,30 +155,102 @@ class Stocks:
         self.data['D'] = self.data.K.rolling(smoothD).mean()
     
 
-    def atr(self):
-        self.data['atr'] = talib.ATR(self.data.High,self.data.Low,self.data.Close, timeperiod = 10)
-    
-    def pivot(self, type, source, name, name_gradient, pivot_index_name_prev,pivot_index_name_next):
+    def atr(self,timeperiod =10):
+        self.data['atr'] = talib.ATR(self.data.High,self.data.Low,self.data.Close, timeperiod = timeperiod)
+    #def pivot(self, type, source, name, name_gradient, pivot_index_name_prev, pivot_index_name_next, period=5):
+    #    pivots = pd.Series([None] * len(source))
+#
+    #    if type == 'high':
+    #        rolling_max = source.rolling(window=2 * period + 1, center=True).max()
+    #        pivots[:] = np.where(source == rolling_max, source, None)
+    #    elif type == 'low':
+    #        rolling_min = source.rolling(window=2 * period + 1, center=True).min()
+    #        pivots[:] = np.where(source == rolling_min, source, None)
+#
+    #    pivots[:period] = source[:period].cummax() if type == 'high' else source[:period].cummin()
+    #    pivots[-period:] = source[-period:].cummax()[::-1] if type == 'high' else source[-period:].cummin()[::-1]
+#
+    #    self.data[name] = pivots
+#
+    #    self.data[pivot_index_name_prev] = [0] * len(pivots)
+    #    self.data[pivot_index_name_next] = [0] * len(pivots)
+    #
+    #    for i in range(len(pivots)):
+    #        if pivots[i] is None and i>0:
+    #            self.data[pivot_index_name_prev].iloc[i] = self.data[pivot_index_name_prev].iloc[i-1]
+    #        else:
+    #            self.data[pivot_index_name_prev].iloc[i],self.data[pivot_index_name_next].iloc[i] = i,i
+    #    for i in range(len(pivots)-1,-1,-1):
+    #        flag = False
+    #        if pivots[i] is not None:
+    #            if flag and i < len(pivots)-1:
+    #                self.data[pivot_index_name_prev].iloc[i],self.data[pivot_index_name_next].iloc[i] = i,self.data[pivot_index_name_next].iloc[i+1]
+    #            else:
+    #                self.data[pivot_index_name_prev].iloc[i],self.data[pivot_index_name_next].iloc[i] = i,i
+    #                flag = True
+    #        elif i< len(pivots)-1:
+    #            self.data[pivot_index_name_next].iloc[i] = self.data[pivot_index_name_next].iloc[i+1]
+    #    self.data[name] = pivots
+    #
+    #    self.gradient(name, name_gradient,pivot_index_name_prev,pivot_index_name_next)
+#
+    #def gradient(self, name, name_gradient, pivot_index_name_prev, pivot_index_name_next):
+    #    gradient = [0]*len(self.data[name])
+    #    for i in range(len(self.data[name])):
+    #        if self.data[pivot_index_name_prev].iloc[i] == -1 or self.data[pivot_index_name_next].iloc[i] == -1:
+    #            gradient[i] = 0
+    #        else:
+    #            gradient[i] = (self.data[name].iloc[self.data[pivot_index_name_next].iloc[i]] - self.data[name].iloc[self.data[pivot_index_name_prev].iloc[i]]) / self.data[name].iloc[self.data[pivot_index_name_prev].iloc[i]]
+    #    self.data[name_gradient] = gradient
+#
+    #def regular_bullish_divergence(self, lbp=5):
+    #    signal = np.zeros(len(self.data.Close), dtype=int)
+    #    for index in range(len(self.data.Close)):
+    #        if any(self.data.gradient_low_rsi[index-i] > 0 and self.data.gradient_low[index-i] < 0 for i in range(lbp)):
+    #            signal[index] = 1
+    #    self.data['regular_bullish_divergence'] = signal
+#
+    #def hidden_bullish_divergence(self, lbh=1):
+    #    signal = np.zeros(len(self.data.Close), dtype=int)
+    #    for index in range(len(self.data.Close)):
+    #        if any(self.data.gradient_low_rsi[index-i] < 0 and self.data.gradient_low[index-i] > 0 for i in range(lbh)):
+    #            signal[index] = 1
+    #    self.data['hidden_bullish_divergence'] = signal
+#
+    #def regular_bearish_divergence(self, lbp=5):
+    #    signal = np.zeros(len(self.data.Close), dtype=int)
+    #    for index in range(len(self.data.Close)):
+    #        if any(self.data.gradient_high_rsi[index-i] < 0 and self.data.gradient_high[index-i] > 0 for i in range(lbp)):
+    #            signal[index] = 1
+    #    self.data['regular_bearish_divergence'] = signal
+#
+    #def hidden_bearish_divergence(self, lbh=1):
+    #    signal = np.zeros(len(self.data.Close), dtype=int)
+    #    for index in range(len(self.data.Close)):
+    #        if any(self.data.gradient_high_rsi[index-i] > 0 and self.data.gradient_high[index-i] < 0 for i in range(lbh)):
+    #            signal[index] = 1
+    #    self.data['hidden_bearish_divergence'] = signal#
+    def pivot(self, type, source, name, name_gradient, pivot_index_name_prev,pivot_index_name_next, period = 5 ):
         pivot = [None] * len(source)
         if type == 'high':
-            for i in range(5, len(source) - 5):
-                if source[i] == max(source[i - 5:i + 6]):
+            for i in range(period, len(source) - period):
+                if source[i] == max(source[i - period:i + 1+period]):
                     pivot[i] = source[i]
-            for i in range(5):
-                if source[i] == max(source[:i + 6]):
+            for i in range(period):
+                if source[i] == max(source[:i + 1+period]):
                     pivot[i] = source[i]
-                if source[-i-1] == max(source[-(i + 6):]):
-                    pivot[-i-1] = source[-(i + 6)]
+                if source[-i-1] == max(source[-(i + 1+period):]):
+                    pivot[-i-1] = source[-(i + 1+period)]
 
         elif type == 'low':
-            for i in range(5, len(source) - 5):
-                if source[i] == min(source[i - 5:i + 6]):
+            for i in range(period, len(source) - period):
+                if source[i] == min(source[i - period:i + 1+period]):
                     pivot[i] = source[i]
-            for i in range(5):
-                if source[i] == min(source[:i + 6]):
+            for i in range(period):
+                if source[i] == min(source[:i + 1+period]):
                     pivot[i] = source[i]
-                if source[-i-1] == min(source[-(i + 6):]):
-                    pivot[-i-1] = source[-(i + 6)]
+                if source[-i-1] == min(source[-(i + 1+period):]):
+                    pivot[-i-1] = source[-(i + 1+period)]
         self.data[pivot_index_name_prev] = [0] * len(pivot)
         self.data[pivot_index_name_next] = [0] * len(pivot)
     
@@ -201,11 +281,11 @@ class Stocks:
             gradient[i] = (self.data[name].iloc[n]-self.data[name].iloc[last])/self.data[name].iloc[last]
         self.data[name_gradient] = gradient
     
-    def regular_bullish_divergence(self):
+    def regular_bullish_divergence(self,lbp = 5):
         # https://www.babypips.com/learn/forex/regular-divergence
         signal = [0] * len(self.data.Close)
         for index in range(len(self.data.Close)):
-            for i in range(5):
+            for i in range(lbp):
                 # to make the signal stronger or weaker we could also confirm that the condition was reverse and this is a potiential sign of reversal
                 #if self.data.gradient_low_rsi[self.data.pivot_index_low_rsi_prev[index-i]] < 0 and self.data.gradient_low[self.data.pivot_index_low_prev[index-i]] < 0:
                 if self.data.gradient_low_rsi[index-i] > 0 and self.data.gradient_low[index-i] < 0:
@@ -213,33 +293,34 @@ class Stocks:
         self.data['regular_bullish_divergence'] = signal
         
     
-    def hidden_bullish_divergence(self):
+    def hidden_bullish_divergence(self,lbh = 1):
         signal = [0] * len(self.data.Close)
         for index in range(len(self.data.Close)):
-            for i in range(1):
+            for i in range(lbh):
                 #if self.data.gradient_low_rsi[self.data.pivot_index_low_rsi_prev[index-i]] < 0 and self.data.gradient_low[self.data.pivot_index_low_prev[index-i]] < 0:
-                if self.data.gradient_low_rsi[index] < 0 and self.data.gradient_low[index] > 0:
+                if self.data.gradient_low_rsi[index-i] < 0 and self.data.gradient_low[index-i] > 0:
                     signal[index] = 1
         self.data['hidden_bullish_divergence'] = signal
     
-    def regular_bearish_divergence(self):
+    def regular_bearish_divergence(self,lbp = 5):
         signal = [0] * len(self.data.Close)
         for index in range(len(self.data.Close)):
-            for i in range(5):
+            for i in range(lbp):
                 #if self.data.gradient_high_rsi[self.data.pivot_index_high_rsi_prev[index-i]] > 0 and self.data.gradient_high[self.data.pivot_index_high_prev[index-i]] > 0:
                 if self.data.gradient_high_rsi[index-i] < 0 and self.data.gradient_high[index-i] > 0:
                     signal[index] = 1
         self.data['regular_bearish_divergence'] = signal
     
-    def hidden_bearish_divergence(self):
+    def hidden_bearish_divergence(self,lbh = 1):
         signal = [0] * len(self.data.Close)
         for index in range(len(self.data.Close)):
-            for i in range(1):
+            for i in range(lbh):
                 #if self.data.gradient_high_rsi[self.data.pivot_index_high_rsi_prev[index-i]] > 0 and self.data.gradient_high[self.data.pivot_index_high_prev[index-i]] > 0:
-                if self.data.gradient_high_rsi[index] > 0 and self.data.gradient_high[index] < 0:
+                if self.data.gradient_high_rsi[index-i] > 0 and self.data.gradient_high[index-i] < 0:
                     signal[index] = 1
         self.data['hidden_bearish_divergence'] = signal
-
+#stocks = Stocks("HDFCLIFE.NS")
+#print(stocks.data)
 """
 
               |                           
@@ -280,7 +361,6 @@ class Risk:
                 sl = entry_price + (entry_price - self.data.Pivot_high[index])*1.5
                 stop_loss = [sl]*4
         
-
         return stop_loss
 
 
@@ -697,8 +777,8 @@ ticker = ['BHARTIARTL.NS','BAJFINANCE.NS','HDFCLIFE.NS','TITAN.NS','BAJAJ-AUTO.N
 tickers = pd.ExcelFile('rsi_divergence/tickers.xlsx').parse('Complete Stock List')['Ticker'][:60]
 
 
-tsla = strategy('RELIANCE.NS','adjusting','multi','5m')
-tsla.run_strategy()
+#tsla = strategy('RELIANCE.NS','adjusting','multi','5m')
+#tsla.run_strategy()
 
 
 
