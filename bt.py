@@ -3,13 +3,16 @@ from backtesting import Strategy
 from backtesting import Backtest
 import pandas as pd
 import main
+import numpy as np
 
 class rsi_divergence(Strategy):
     stock = main.Stocks('HDFCLIFE.NS','1h')
+    #pd.Timestamp(stock.data.index)
     rsi_period = 14
-    atr_period = 10
+    atr_period = 21
     atr_multiplier = 2
-    lbp = 5
+    lbp = 2
+
 
     def regular_bullish_divergence(self):
         self.stock.regular_bullish_divergence()
@@ -41,25 +44,29 @@ class rsi_divergence(Strategy):
         
             
     def next(self):
+        super().next()
         if self.position:
             for trade in self.trades:
                 if trade.is_long:
-                    trade.sl = self.data.Close[-1] - self.atr[-1] * 2
-                    trade.tp = self.data.Close[-1] + self.atr[-1] * 2
+                    trade.sl = max(trade.sl or -np.inf, self.data.Close[-1] - self.atr[-1])
+                    trade.tp = min(trade.tp or np.inf, self.data.Close[-1] + self.atr[-1]*1.5)
                 elif trade.is_short:
-                    trade.sl = self.data.Close[-1] + self.atr[-1] * 2
-                    trade.tp = self.data.Close[-1] - self.atr[-1] * 2
+                    trade.sl = min(trade.sl or np.inf, self.data.Close[-1] + self.atr[-1])
+                    trade.tp = max(trade.tp or -np.inf, self.data.Close[-1] - self.atr[-1]*1.5)
+        else:
+            if self.regular_bullish_divergence[-1] == 1 and self.K[-1] > self.D[-1] and self.K[-1] < 20:
+                self.buy(size=1,sl = self.data.Close[-1] - self.atr[-1]*2,tp = self.data.Close[-1] + self.atr[-1])
+
+            if self.regular_bearish_divergence[-1] == 1 and self.K[-1] < self.D[-1] and self.K[-1] > 80:
+                self.sell(size=1,sl = self.data.Close[-1] + self.atr[-1]*2,tp = self.data.Close[-1] - self.atr[-1])
     
-        if self.regular_bullish_divergence[-1] == 1 and self.K[-1] > self.D[-1] and self.K[-1] < 20:
-            self.buy(size=1,sl = self.data.Close[-1] - self.atr[-1]*2,tp = self.data.Close[-1] + self.atr[-1]*2)
-        
-        if self.regular_bearish_divergence[-1] == 1 and self.K[-1] < self.D[-1] and self.K[-1] > 80:
-            self.sell(size=1,sl = self.data.Close[-1] + self.atr[-1]*2,tp = self.data.Close[-1] - self.atr[-1]*2)
+    
 
 data = pd.read_csv('rsi_divergence/cache/HDFCLIFE.NS_1h_data.csv', parse_dates=['Datetime'], index_col='Datetime')
 
-bt = Backtest(pd.read_csv('rsi_divergence/cache/HDFCLIFE.NS_1h_data.csv'), rsi_divergence, cash=10000)
+bt = Backtest(data, rsi_divergence, cash=10000)
 stats = bt.run()
+
 #stats = bt.optimize(
 #    rsi_period = range(14,43,7),
 #    atr_period = range(2,21,3),
