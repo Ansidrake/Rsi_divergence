@@ -48,17 +48,17 @@ class rsi_divergence(Strategy):
         if self.position:
             for trade in self.trades:
                 if trade.is_long:
-                    trade.sl = max(trade.sl or -np.inf, self.data.Close[-1] - self.atr[-1])
-                    trade.tp = min(trade.tp or np.inf, self.data.Close[-1] + self.atr[-1]*1.5)
+                    trade.sl = max(trade.sl or -np.inf, self.data.Close[-1] - self.atr[-1]*2)
+                    trade.tp = min(trade.tp or np.inf, self.data.Close[-1] + self.atr[-1]*3)
                 elif trade.is_short:
-                    trade.sl = min(trade.sl or np.inf, self.data.Close[-1] + self.atr[-1])
-                    trade.tp = max(trade.tp or -np.inf, self.data.Close[-1] - self.atr[-1]*1.5)
+                    trade.sl = min(trade.sl or np.inf, self.data.Close[-1] + self.atr[-1]*2)
+                    trade.tp = max(trade.tp or -np.inf, self.data.Close[-1] - self.atr[-1]*3)
         else:
             if self.regular_bullish_divergence[-1] == 1 and self.K[-1] > self.D[-1] and self.K[-1] < 20:
-                self.buy(size=1,sl = self.data.Close[-1] - self.atr[-1]*2,tp = self.data.Close[-1] + self.atr[-1])
+                self.buy(sl = self.data.Close[-1] - self.atr[-1]*2,tp = self.data.Close[-1] + self.atr[-1]*3)
 
             if self.regular_bearish_divergence[-1] == 1 and self.K[-1] < self.D[-1] and self.K[-1] > 80:
-                self.sell(size=1,sl = self.data.Close[-1] + self.atr[-1]*2,tp = self.data.Close[-1] - self.atr[-1])
+                self.sell(sl = self.data.Close[-1] + self.atr[-1]*2,tp = self.data.Close[-1] - self.atr[-1]*3)
     
     
 
